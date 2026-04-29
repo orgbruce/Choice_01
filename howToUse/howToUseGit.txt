@@ -11,6 +11,10 @@ git remote add origin https://github.com/orgbruce/Choice_01.git
 
 의도치 않은 폴더에 아래의 명령을 하였을때 취소하는 방법 
 
+git init
+git add .
+
+
 명령 취소 
 
 git config --global user.email "you@example.com"
@@ -79,3 +83,49 @@ git clone https://github.com/orgbruce/Choice_01.git
 깃허브* 
 https://github.com/orgbruce/Choice_01
 https://github.com/ksh2530-hue/2star
+
+
+클론 받은 상태 그대로인데 내가 수정해서 커밋
+git add .
+git commit -m "howToUsGit 업로드"
+git push
+
+
+클론 받은 상태 그대로인데 내가 수정해서 커밋
+orgbruce/Choice_01 레포 소유자에게
+ksh2530-hue 계정을 Collaborator로 추가요청 
+
+orgbruce/Choice_01 레포 소유자에게 ksh2530-hue 계정을 Collaborator로 추가 하는법
+
+- - - 
+
+
+클론 받은 상태 그대로인데 내가 수정해서 커밋하고 싶은데요. 
+orgbruce/Choice_01 레포 소유자에게
+ksh2530-hue 계정을 Collaborator로 추가요청하고 합니다. 
+
+orgbruce/Choice_01 레포 소유자에게 ksh2530-hue 계정을 Collaborator로 추가 하는법
+
+이라고 gpt에게 여쭤보고 저를 Collaborator로 추가해주세요.
+
+저는 과장님을 Collaborator로 추가해두겠습니다. 
+
+- - -
+
+Repository
+Commit
+Push
+Branch
+Merge
+
+
+
+
+
+
+
+
+
+
+
+
