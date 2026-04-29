@@ -1,0 +1,10 @@
+
+git clone https://github.com/orgbruce/Choice_01.git
+
+
+클론 받은 상태 그대로인데 내가 수정해서 커밋
+
+git add .
+git commit -m "howToUseGit.txt, git_Collaborator.txt 업로드"
+git push
+
