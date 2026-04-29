@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="ko">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Choice</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="app-shell">
+        <header class="browser-top">
+            <div class="window-title">
+                <span class="brand-mark">C</span>
+                <span>Choice</span>
+            </div>
+
+            <div class="tab-strip" aria-label="관심종목 탭">
+                <div id="tabs" class="tabs"></div>
+                <button id="addTabButton" class="new-tab-button" type="button" title="새 탭">+</button>
+            </div>
+        </header>
+
+        <main class="workspace">
+            <section class="toolbar" aria-label="종목 추가 및 업데이트">
+                <div class="search-wrap">
+                    <input
+                        id="stockInput"
+                        class="stock-input"
+                        type="text"
+                        autocomplete="off"
+                        placeholder="종목명 또는 티커 검색"
+                        aria-label="종목 검색"
+                    >
+                    <div id="suggestions" class="suggestions" role="listbox"></div>
+                    <div id="suggestionStatus" class="suggestion-status" aria-live="polite"></div>
+                </div>
+                <button id="updateButton" class="update-button" type="button">업데이트</button>
+            </section>
+
+            <section class="stock-panel">
+                <div class="table-tools">
+                    <nav id="columnGroupTabs" class="column-group-tabs" aria-label="컬럼 그룹"></nav>
+                    <div class="column-settings">
+                        <button id="columnSettingsButton" class="settings-button" type="button" aria-expanded="false" aria-controls="columnSettingsMenu">
+                            설정
+                        </button>
+                        <div id="columnSettingsMenu" class="column-settings-menu" aria-label="테이블 컬럼 설정"></div>
+                    </div>
+                </div>
+                <div id="tableHead" class="table-head"></div>
+                <div id="stockList" class="stock-list" aria-live="polite"></div>
+                <div id="emptyState" class="empty-state">
+                    관심종목을 검색해서 현재 탭에 추가하세요.
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <nav id="contextMenu" class="context-menu" aria-label="탭 메뉴">
+        <button id="renameTabButton" type="button">이름 변경</button>
+    </nav>
+
+    <div id="tabDialogOverlay" class="dialog-overlay" aria-hidden="true">
+        <section class="tab-dialog" role="dialog" aria-modal="true" aria-labelledby="tabDialogTitle">
+            <h2 id="tabDialogTitle">탭 제목</h2>
+            <input
+                id="tabNameInput"
+                class="tab-name-input"
+                type="text"
+                maxlength="32"
+                autocomplete="off"
+                placeholder="예: 장기 보유"
+                aria-label="탭 제목"
+            >
+            <p id="tabNameError" class="dialog-error" aria-live="polite"></p>
+            <div class="dialog-actions">
+                <button id="cancelTabDialogButton" class="dialog-button ghost" type="button">취소</button>
+                <button id="confirmTabDialogButton" class="dialog-button primary" type="button">확인</button>
+            </div>
+        </section>
+    </div>
+
+    <script>
+        window.CHOICE_STOCKS = {{ stocks | tojson }};
+    </script>
+    <script src="{{ url_for('static', filename='script.js') }}?v=20260428-autocomplete-datalist-fallback"></script>
+</body>
+</html>

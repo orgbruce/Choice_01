@@ -1,0 +1,837 @@
+let STOCKS = Array.isArray(window.CHOICE_STOCKS) ? window.CHOICE_STOCKS : [];
+const STORAGE_KEY = "choice.state.v1";
+const COLUMN_SCHEMA_VERSION = 4;
+
+const COLUMN_DEFS = [
+    { key: "name", label: "종목명", className: "stock-name", width: "minmax(140px, 1.4fr)" },
+    { key: "ticker", label: "티커", width: "minmax(82px, 0.9fr)" },
+    { key: "price", label: "현재가", width: "minmax(74px, 0.85fr)" },
+    { key: "change_amount", label: "변동", width: "minmax(74px, 0.85fr)", valueClass: getChangeClass },
+    { key: "change", label: "오늘변동률", width: "minmax(84px, 0.9fr)", valueClass: getChangeClass },
+    { key: "volume", label: "거래량", width: "minmax(74px, 0.85fr)" },
+    { key: "close", label: "종가", width: "minmax(74px, 0.85fr)" },
+    { key: "open", label: "시가", width: "minmax(74px, 0.85fr)" },
+    { key: "high", label: "고가", width: "minmax(74px, 0.85fr)" },
+    { key: "low", label: "저가", width: "minmax(74px, 0.85fr)" },
+    { key: "per", label: "PER", width: "minmax(74px, 0.85fr)" },
+    { key: "roic", label: "ROIC", width: "minmax(74px, 0.85fr)" },
+    { key: "operating_income_growth", label: "영업이익증가율", width: "minmax(110px, 1fr)" },
+    { key: "market_cap", label: "시가총액", width: "minmax(86px, 0.9fr)" },
+    { key: "performance_1d", label: "1D", width: "minmax(66px, 0.75fr)", valueClass: getChangeClass },
+    { key: "performance_1w", label: "1W", width: "minmax(66px, 0.75fr)", valueClass: getChangeClass },
+    { key: "performance_1m", label: "1M", width: "minmax(66px, 0.75fr)", valueClass: getChangeClass },
+    { key: "performance_ytd", label: "YTD", width: "minmax(66px, 0.75fr)", valueClass: getChangeClass },
+    { key: "performance_1y", label: "1Y", width: "minmax(66px, 0.75fr)", valueClass: getChangeClass },
+    { key: "performance_3y", label: "3Y", width: "minmax(66px, 0.75fr)", valueClass: getChangeClass },
+    { key: "performance_5y", label: "5Y", width: "minmax(66px, 0.75fr)", valueClass: getChangeClass },
+];
+
+const COLUMN_GROUPS = [
+    {
+        key: "price",
+        label: "가격",
+        columns: ["name", "ticker", "price", "change", "volume", "close", "open", "high", "low"],
+    },
+    {
+        key: "fundamental",
+        label: "펀더멘털",
+        columns: ["name", "per", "roic", "operating_income_growth", "market_cap"],
+    },
+    {
+        key: "performance",
+        label: "성과 상승률",
+        columns: ["name", "performance_1d", "performance_1w", "performance_1m", "performance_1y", "performance_ytd", "performance_3y", "performance_5y"],
+    },
+];
+
+const DEFAULT_VISIBLE_COLUMNS = COLUMN_DEFS.map((column) => column.key);
+const DEFAULT_COLUMN_GROUP = COLUMN_GROUPS[0].key;
+const FETCHABLE_COLUMN_KEYS = new Set([
+    "price",
+    "change_amount",
+    "change",
+    "volume",
+    "close",
+    "open",
+    "high",
+    "low",
+    "per",
+    "roic",
+    "operating_income_growth",
+    "market_cap",
+    "performance_1d",
+    "performance_1w",
+    "performance_1m",
+    "performance_ytd",
+    "performance_1y",
+    "performance_3y",
+    "performance_5y",
+]);
+
+const tabsEl = document.getElementById("tabs");
+const addTabButton = document.getElementById("addTabButton");
+const stockInput = document.getElementById("stockInput");
+const suggestionsEl = document.getElementById("suggestions");
+const suggestionStatusEl = document.getElementById("suggestionStatus");
+const tableHeadEl = document.getElementById("tableHead");
+const stockListEl = document.getElementById("stockList");
+const emptyStateEl = document.getElementById("emptyState");
+const updateButton = document.getElementById("updateButton");
+const columnGroupTabsEl = document.getElementById("columnGroupTabs");
+const columnSettingsButton = document.getElementById("columnSettingsButton");
+const columnSettingsMenu = document.getElementById("columnSettingsMenu");
+const contextMenu = document.getElementById("contextMenu");
+const renameTabButton = document.getElementById("renameTabButton");
+const tabDialogOverlay = document.getElementById("tabDialogOverlay");
+const tabDialogTitle = document.getElementById("tabDialogTitle");
+const tabNameInput = document.getElementById("tabNameInput");
+const tabNameError = document.getElementById("tabNameError");
+const cancelTabDialogButton = document.getElementById("cancelTabDialogButton");
+const confirmTabDialogButton = document.getElementById("confirmTabDialogButton");
+
+let state = loadState();
+let contextTabId = null;
+let activeSuggestionIndex = -1;
+let draggedTicker = null;
+let dragHandleArmedTicker = null;
+let isUpdating = false;
+let tabDialogMode = "create";
+let editingTabId = null;
+let currentSuggestions = [];
+let suggestionRequestId = 0;
+
+function createId() {
+    return `tab-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function normalizeSearchText(value) {
+    return String(value || "").normalize("NFC").trim().toLowerCase();
+}
+
+function createDefaultTab(index = 1) {
+    return {
+        id: createId(),
+        title: `관심종목 ${index}`,
+        stocks: [],
+    };
+}
+
+function normalizeVisibleColumns(columns) {
+    if (!Array.isArray(columns)) return [...DEFAULT_VISIBLE_COLUMNS];
+
+    const validColumns = columns.filter((column) => DEFAULT_VISIBLE_COLUMNS.includes(column));
+    return validColumns.length > 0 ? validColumns : [...DEFAULT_VISIBLE_COLUMNS];
+}
+
+function normalizeColumnGroup(groupKey) {
+    return COLUMN_GROUPS.some((group) => group.key === groupKey) ? groupKey : DEFAULT_COLUMN_GROUP;
+}
+
+function createDefaultGroupVisibleColumns() {
+    return Object.fromEntries(COLUMN_GROUPS.map((group) => [group.key, [...group.columns]]));
+}
+
+function normalizeGroupVisibleColumns(groupColumns) {
+    const defaults = createDefaultGroupVisibleColumns();
+    if (!groupColumns || typeof groupColumns !== "object") return defaults;
+
+    return Object.fromEntries(COLUMN_GROUPS.map((group) => {
+        if (!Array.isArray(groupColumns[group.key])) return [group.key, defaults[group.key]];
+
+        const validColumns = groupColumns[group.key].filter((key) => group.columns.includes(key));
+        return [group.key, validColumns];
+    }));
+}
+
+function getColumnGroup(groupKey = state.activeColumnGroup) {
+    return COLUMN_GROUPS.find((group) => group.key === normalizeColumnGroup(groupKey)) || COLUMN_GROUPS[0];
+}
+
+function getColumnByKey(key) {
+    return COLUMN_DEFS.find((column) => column.key === key);
+}
+
+function loadState() {
+    try {
+        const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
+        if (saved && Array.isArray(saved.tabs) && saved.tabs.length > 0) {
+            const shouldResetColumns = saved.columnSchemaVersion !== COLUMN_SCHEMA_VERSION;
+            return {
+                tabs: saved.tabs.map((tab, index) => ({
+                    id: tab.id || createId(),
+                    title: tab.title || `관심종목 ${index + 1}`,
+                    stocks: Array.isArray(tab.stocks) ? tab.stocks : [],
+                })),
+                activeTabId: saved.activeTabId || saved.tabs[0].id,
+                visibleColumns: shouldResetColumns ? [...DEFAULT_VISIBLE_COLUMNS] : normalizeVisibleColumns(saved.visibleColumns),
+                activeColumnGroup: normalizeColumnGroup(saved.activeColumnGroup),
+                groupVisibleColumns: shouldResetColumns ? createDefaultGroupVisibleColumns() : normalizeGroupVisibleColumns(saved.groupVisibleColumns),
+                columnSchemaVersion: COLUMN_SCHEMA_VERSION,
+            };
+        }
+    } catch (error) {
+        console.warn("저장된 상태를 불러오지 못했습니다.", error);
+    }
+
+    const firstTab = createDefaultTab();
+    return {
+        tabs: [firstTab],
+        activeTabId: firstTab.id,
+        visibleColumns: [...DEFAULT_VISIBLE_COLUMNS],
+        activeColumnGroup: DEFAULT_COLUMN_GROUP,
+        groupVisibleColumns: createDefaultGroupVisibleColumns(),
+        columnSchemaVersion: COLUMN_SCHEMA_VERSION,
+    };
+}
+
+function saveState() {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+}
+
+function getVisibleColumns() {
+    state.groupVisibleColumns = normalizeGroupVisibleColumns(state.groupVisibleColumns);
+    const activeGroup = getColumnGroup();
+    return state.groupVisibleColumns[activeGroup.key]
+        .map(getColumnByKey)
+        .filter(Boolean);
+}
+
+function applyGridColumns() {
+    const columnWidths = getVisibleColumns().map((column) => column.width).join(" ");
+    document.documentElement.style.setProperty("--stock-grid-columns", `42px ${columnWidths} 52px`);
+}
+
+function getActiveTab() {
+    let tab = state.tabs.find((item) => item.id === state.activeTabId);
+    if (!tab) {
+        tab = state.tabs[0];
+        state.activeTabId = tab.id;
+    }
+    return tab;
+}
+
+function render() {
+    applyGridColumns();
+    renderTabs();
+    renderColumnGroupTabs();
+    renderColumnSettings();
+    renderTableHead();
+    renderStocks();
+    saveState();
+}
+
+function renderColumnGroupTabs() {
+    columnGroupTabsEl.innerHTML = "";
+
+    COLUMN_GROUPS.forEach((group) => {
+        const button = document.createElement("button");
+        button.className = `column-group-tab${group.key === state.activeColumnGroup ? " active" : ""}`;
+        button.type = "button";
+        button.textContent = group.label;
+
+        button.addEventListener("click", () => {
+            state.activeColumnGroup = group.key;
+            render();
+        });
+
+        columnGroupTabsEl.appendChild(button);
+    });
+}
+
+function renderTabs() {
+    tabsEl.innerHTML = "";
+
+    state.tabs.forEach((tab) => {
+        const tabButton = document.createElement("button");
+        tabButton.className = `tab${tab.id === state.activeTabId ? " active" : ""}`;
+        tabButton.type = "button";
+        tabButton.dataset.tabId = tab.id;
+
+        const title = document.createElement("span");
+        title.className = "tab-title";
+        title.textContent = tab.title;
+
+        const close = document.createElement("button");
+        close.className = "tab-close";
+        close.type = "button";
+        close.textContent = "x";
+        close.title = "닫기";
+
+        close.addEventListener("click", (event) => {
+            event.stopPropagation();
+            closeTab(tab.id);
+        });
+
+        tabButton.addEventListener("click", () => {
+            state.activeTabId = tab.id;
+            hideContextMenu();
+            render();
+        });
+
+        tabButton.addEventListener("contextmenu", (event) => {
+            event.preventDefault();
+            contextTabId = tab.id;
+            showContextMenu(event.clientX, event.clientY);
+        });
+
+        tabButton.append(title, close);
+        tabsEl.appendChild(tabButton);
+    });
+}
+
+function renderColumnSettings() {
+    columnSettingsMenu.innerHTML = "";
+    const activeGroup = getColumnGroup();
+
+    activeGroup.columns
+        .map(getColumnByKey)
+        .filter(Boolean)
+        .forEach((column) => {
+        const label = document.createElement("label");
+        label.className = "column-setting-item";
+
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.checked = state.groupVisibleColumns[activeGroup.key].includes(column.key);
+
+        checkbox.addEventListener("change", () => {
+            if (checkbox.checked) {
+                state.groupVisibleColumns[activeGroup.key] = [...new Set([...state.groupVisibleColumns[activeGroup.key], column.key])];
+            } else {
+                state.groupVisibleColumns[activeGroup.key] = state.groupVisibleColumns[activeGroup.key].filter((key) => key !== column.key);
+            }
+
+            render();
+            columnSettingsMenu.classList.add("open");
+            columnSettingsButton.setAttribute("aria-expanded", "true");
+        });
+
+        const text = document.createElement("span");
+        text.textContent = column.label;
+
+        label.append(checkbox, text);
+        columnSettingsMenu.appendChild(label);
+    });
+}
+
+function renderTableHead() {
+    tableHeadEl.innerHTML = "";
+    tableHeadEl.appendChild(document.createElement("span"));
+
+    getVisibleColumns().forEach((column) => {
+        const cell = document.createElement("span");
+        cell.textContent = column.label;
+        tableHeadEl.appendChild(cell);
+    });
+
+    tableHeadEl.appendChild(document.createElement("span"));
+}
+
+function renderStocks() {
+    const activeTab = getActiveTab();
+    stockListEl.innerHTML = "";
+
+    emptyStateEl.classList.toggle("hidden", activeTab.stocks.length > 0);
+
+    activeTab.stocks.forEach((stock) => {
+        const row = document.createElement("div");
+        row.className = "stock-row";
+        row.draggable = true;
+        row.dataset.ticker = stock.ticker;
+
+        const dragHandle = document.createElement("button");
+        dragHandle.className = "drag-handle";
+        dragHandle.type = "button";
+        dragHandle.title = "순서 변경";
+        dragHandle.draggable = true;
+        dragHandle.textContent = "::";
+        row.appendChild(dragHandle);
+
+        getVisibleColumns().forEach((column) => {
+            const cell = document.createElement("span");
+            const valueClass = typeof column.valueClass === "function" ? column.valueClass(stock[column.key]) : "";
+            cell.className = ["stock-cell", column.className || "", valueClass].filter(Boolean).join(" ");
+            cell.textContent = stock[column.key] || "-";
+            row.appendChild(cell);
+        });
+
+        const deleteButton = document.createElement("button");
+        deleteButton.className = "delete-stock";
+        deleteButton.type = "button";
+        deleteButton.title = "삭제";
+        deleteButton.textContent = "x";
+        deleteButton.addEventListener("click", () => removeStock(stock.ticker));
+        row.appendChild(deleteButton);
+
+        dragHandle.addEventListener("pointerdown", () => {
+            dragHandleArmedTicker = stock.ticker;
+        });
+
+        dragHandle.addEventListener("pointerup", () => {
+            dragHandleArmedTicker = null;
+        });
+
+        dragHandle.addEventListener("dragstart", (event) => {
+            draggedTicker = stock.ticker;
+            row.classList.add("dragging");
+            event.dataTransfer.effectAllowed = "move";
+            event.dataTransfer.setData("text/plain", stock.ticker);
+        });
+
+        row.addEventListener("dragstart", (event) => {
+            if (dragHandleArmedTicker !== stock.ticker && !event.target.closest(".drag-handle")) {
+                event.preventDefault();
+                return;
+            }
+            draggedTicker = stock.ticker;
+            row.classList.add("dragging");
+            event.dataTransfer.effectAllowed = "move";
+            event.dataTransfer.setData("text/plain", stock.ticker);
+        });
+
+        row.addEventListener("dragend", () => {
+            draggedTicker = null;
+            dragHandleArmedTicker = null;
+            row.classList.remove("dragging");
+            saveState();
+        });
+
+        row.addEventListener("dragover", (event) => {
+            if (!draggedTicker) return;
+            event.preventDefault();
+            reorderStock(stock.ticker);
+        });
+
+        stockListEl.appendChild(row);
+    });
+}
+
+function getChangeClass(change) {
+    if (!change || change === "-") return "";
+    if (change.startsWith("+")) return "positive";
+    if (change.startsWith("-")) return "negative";
+    return "";
+}
+
+function addTab() {
+    openTabDialog("create");
+}
+
+function createTabWithTitle(title) {
+    const tab = createDefaultTab(state.tabs.length + 1);
+    tab.title = title;
+    state.tabs.push(tab);
+    state.activeTabId = tab.id;
+    render();
+}
+
+function closeTab(tabId) {
+    if (state.tabs.length === 1) return;
+
+    const index = state.tabs.findIndex((tab) => tab.id === tabId);
+    state.tabs = state.tabs.filter((tab) => tab.id !== tabId);
+
+    if (state.activeTabId === tabId) {
+        const nextTab = state.tabs[Math.max(0, index - 1)] || state.tabs[0];
+        state.activeTabId = nextTab.id;
+    }
+
+    render();
+}
+
+function renameTab() {
+    const tab = state.tabs.find((item) => item.id === contextTabId);
+    if (!tab) return;
+
+    openTabDialog("rename", tab);
+    hideContextMenu();
+}
+
+function openTabDialog(mode, tab = null) {
+    tabDialogMode = mode;
+    editingTabId = tab ? tab.id : null;
+    tabDialogTitle.textContent = mode === "create" ? "새 탭 제목" : "탭 이름 변경";
+    confirmTabDialogButton.textContent = mode === "create" ? "생성" : "변경";
+    tabNameInput.value = tab ? tab.title : "";
+    tabNameError.textContent = "";
+    tabDialogOverlay.classList.add("open");
+    tabDialogOverlay.setAttribute("aria-hidden", "false");
+    hideContextMenu();
+    hideColumnSettings();
+    suggestionsEl.classList.remove("open");
+    window.setTimeout(() => {
+        tabNameInput.focus();
+        tabNameInput.select();
+    }, 0);
+}
+
+function closeTabDialog() {
+    tabDialogOverlay.classList.remove("open");
+    tabDialogOverlay.setAttribute("aria-hidden", "true");
+    tabNameInput.value = "";
+    tabNameError.textContent = "";
+    editingTabId = null;
+}
+
+function confirmTabDialog() {
+    const title = tabNameInput.value.trim();
+    if (!title) {
+        tabNameError.textContent = "탭 제목을 입력하세요.";
+        tabNameInput.focus();
+        return;
+    }
+
+    const safeTitle = title.slice(0, 32);
+    if (tabDialogMode === "create") {
+        createTabWithTitle(safeTitle);
+    } else {
+        const tab = state.tabs.find((item) => item.id === editingTabId);
+        if (tab) {
+            tab.title = safeTitle;
+            render();
+        }
+    }
+
+    closeTabDialog();
+}
+
+function showContextMenu(x, y) {
+    contextMenu.style.left = `${x}px`;
+    contextMenu.style.top = `${y}px`;
+    contextMenu.classList.add("open");
+}
+
+function hideContextMenu() {
+    contextMenu.classList.remove("open");
+}
+
+function toggleColumnSettings() {
+    const isOpen = columnSettingsMenu.classList.toggle("open");
+    columnSettingsButton.setAttribute("aria-expanded", String(isOpen));
+}
+
+function hideColumnSettings() {
+    columnSettingsMenu.classList.remove("open");
+    columnSettingsButton.setAttribute("aria-expanded", "false");
+}
+
+function findMatches(query) {
+    const normalized = normalizeSearchText(query);
+    if (!normalized) return [];
+
+    return STOCKS.filter((stock) => {
+        const searchableText = [
+            stock.name,
+            stock.ticker,
+            stock.market,
+            stock.category,
+        ].map(normalizeSearchText).join(" ");
+
+        return searchableText.includes(normalized);
+    });
+}
+
+async function fetchMatches(query) {
+    const normalized = normalizeSearchText(query);
+    if (!normalized) return [];
+
+    const localMatches = findMatches(query);
+
+    try {
+        const params = new URLSearchParams({ q: query });
+        const response = await fetch(`/api/stocks/search?${params.toString()}`, { cache: "no-store" });
+        if (!response.ok) return localMatches;
+
+        const data = await response.json();
+        return Array.isArray(data.stocks) ? data.stocks : localMatches;
+    } catch (error) {
+        console.warn("서버 종목 검색 실패", error);
+        return localMatches;
+    }
+}
+
+async function refreshStockCatalog() {
+    try {
+        const response = await fetch("/api/stocks", { cache: "no-store" });
+        if (!response.ok) return;
+
+        const data = await response.json();
+        if (Array.isArray(data.stocks)) {
+            STOCKS = data.stocks;
+            if (document.activeElement === stockInput && stockInput.value.trim()) {
+                renderSuggestions();
+            }
+        }
+    } catch (error) {
+        console.warn("종목 목록 갱신 실패", error);
+    }
+}
+
+function renderSuggestionList(matches) {
+    suggestionsEl.innerHTML = "";
+    currentSuggestions = matches;
+    suggestionStatusEl.textContent = stockInput.value.trim()
+        ? `${matches.length}개 종목 검색됨`
+        : "";
+
+    if (matches.length === 0) {
+        suggestionsEl.classList.remove("open");
+        return;
+    }
+
+    if (activeSuggestionIndex < 0) {
+        activeSuggestionIndex = 0;
+    } else {
+        activeSuggestionIndex = Math.min(activeSuggestionIndex, matches.length - 1);
+    }
+
+    matches.forEach((stock, index) => {
+        const item = document.createElement("button");
+        item.className = `suggestion-item${index === activeSuggestionIndex ? " active" : ""}`;
+        item.type = "button";
+        item.setAttribute("role", "option");
+        item.setAttribute("aria-selected", String(index === activeSuggestionIndex));
+        item.innerHTML = `
+            <strong>${escapeHtml(stock.name)}</strong>
+            <span class="suggestion-meta">${escapeHtml(stock.category || "-")} · ${escapeHtml(stock.ticker)} · ${escapeHtml(stock.market)}</span>
+        `;
+        item.addEventListener("click", () => addStock(stock));
+        suggestionsEl.appendChild(item);
+    });
+
+    suggestionsEl.classList.add("open");
+
+    const activeItem = suggestionsEl.querySelector(".suggestion-item.active");
+    if (activeItem) {
+        activeItem.scrollIntoView({ block: "nearest" });
+    }
+}
+
+async function renderSuggestions() {
+    const query = stockInput.value;
+    const normalized = normalizeSearchText(query);
+    const requestId = suggestionRequestId + 1;
+    suggestionRequestId = requestId;
+
+    if (!normalized) {
+        renderSuggestionList([]);
+        return;
+    }
+
+    suggestionStatusEl.textContent = "검색 중...";
+
+    try {
+        const matches = await fetchMatches(query);
+        if (requestId !== suggestionRequestId) return;
+        renderSuggestionList(matches);
+    } catch (error) {
+        console.warn("종목 검색 실패", error);
+        if (requestId !== suggestionRequestId) return;
+        renderSuggestionList(findMatches(query));
+    }
+}
+
+function handleStockInputChange() {
+    activeSuggestionIndex = -1;
+    renderSuggestions();
+}
+
+function handleStockInputKeyup(event) {
+    if (["ArrowDown", "ArrowUp", "Enter", "Escape"].includes(event.key)) return;
+    handleStockInputChange();
+}
+
+function escapeHtml(value) {
+    return String(value).replace(/[&<>"']/g, (char) => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#039;",
+    }[char]));
+}
+
+function addStock(stock) {
+    const activeTab = getActiveTab();
+    const exists = activeTab.stocks.some((item) => item.ticker === stock.ticker);
+    if (!exists) {
+        activeTab.stocks.push({ ...stock });
+    }
+
+    stockInput.value = "";
+    activeSuggestionIndex = -1;
+    suggestionsEl.classList.remove("open");
+    render();
+}
+
+function removeStock(ticker) {
+    const activeTab = getActiveTab();
+    activeTab.stocks = activeTab.stocks.filter((stock) => stock.ticker !== ticker);
+    render();
+}
+
+function reorderStock(targetTicker) {
+    if (!draggedTicker || draggedTicker === targetTicker) return;
+
+    const activeTab = getActiveTab();
+    const fromIndex = activeTab.stocks.findIndex((stock) => stock.ticker === draggedTicker);
+    const toIndex = activeTab.stocks.findIndex((stock) => stock.ticker === targetTicker);
+
+    if (fromIndex < 0 || toIndex < 0) return;
+
+    const [moved] = activeTab.stocks.splice(fromIndex, 1);
+    activeTab.stocks.splice(toIndex, 0, moved);
+    renderStocks();
+    saveState();
+}
+
+async function updateActiveStocks() {
+    if (isUpdating) return;
+
+    const activeTab = getActiveTab();
+    const tickers = activeTab.stocks.map((stock) => stock.ticker);
+    if (tickers.length === 0) return;
+
+    const fields = getVisibleColumns()
+        .map((column) => column.key)
+        .filter((key) => FETCHABLE_COLUMN_KEYS.has(key));
+    if (fields.length === 0) return;
+
+    isUpdating = true;
+    updateButton.disabled = true;
+    updateButton.textContent = "업데이트 중...";
+
+    try {
+        const response = await fetch("/api/stocks/update", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ tickers, fields }),
+        });
+
+        if (!response.ok) throw new Error("서버 응답 오류");
+
+        const data = await response.json();
+        activeTab.stocks = activeTab.stocks.map((stock) => ({
+            ...stock,
+            ...(data.stocks && data.stocks[stock.ticker] ? {
+                ...Object.fromEntries(fields.map((field) => [field, "-"])),
+                ...data.stocks[stock.ticker],
+            } : {
+                ...Object.fromEntries(fields.map((field) => [field, "-"])),
+                ...(fields.includes("price") ? { price: "조회 실패" } : {}),
+            }),
+        }));
+    } catch (error) {
+        console.warn("업데이트 실패", error);
+        activeTab.stocks = activeTab.stocks.map((stock) => ({
+            ...stock,
+            ...Object.fromEntries(fields.map((field) => [field, "-"])),
+            ...(fields.includes("price") ? { price: "조회 실패" } : {}),
+        }));
+    } finally {
+        isUpdating = false;
+        updateButton.disabled = false;
+        updateButton.textContent = "업데이트";
+        render();
+    }
+}
+
+addTabButton.addEventListener("click", addTab);
+renameTabButton.addEventListener("click", renameTab);
+updateButton.addEventListener("click", updateActiveStocks);
+columnSettingsButton.addEventListener("click", toggleColumnSettings);
+cancelTabDialogButton.addEventListener("click", closeTabDialog);
+confirmTabDialogButton.addEventListener("click", confirmTabDialog);
+
+tabDialogOverlay.addEventListener("click", (event) => {
+    if (event.target === tabDialogOverlay) closeTabDialog();
+});
+
+tabNameInput.addEventListener("input", () => {
+    tabNameError.textContent = "";
+});
+
+tabNameInput.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+        event.preventDefault();
+        confirmTabDialog();
+    }
+
+    if (event.key === "Escape") {
+        event.preventDefault();
+        closeTabDialog();
+    }
+});
+
+stockInput.addEventListener("input", handleStockInputChange);
+
+stockInput.addEventListener("keyup", handleStockInputKeyup);
+
+stockInput.addEventListener("change", handleStockInputChange);
+
+stockInput.addEventListener("compositionend", handleStockInputChange);
+
+stockInput.addEventListener("focus", () => {
+    if (stockInput.value.trim()) renderSuggestions();
+});
+
+stockInput.addEventListener("keydown", (event) => {
+    if (event.key === "ArrowDown") {
+        event.preventDefault();
+        if (currentSuggestions.length === 0) {
+            renderSuggestions();
+            return;
+        }
+        activeSuggestionIndex = Math.min(activeSuggestionIndex + 1, currentSuggestions.length - 1);
+        renderSuggestionList(currentSuggestions);
+    }
+
+    if (event.key === "ArrowUp") {
+        event.preventDefault();
+        if (currentSuggestions.length === 0) {
+            renderSuggestions();
+            return;
+        }
+        activeSuggestionIndex = Math.max(activeSuggestionIndex - 1, 0);
+        renderSuggestionList(currentSuggestions);
+    }
+
+    if (event.key === "Enter") {
+        event.preventDefault();
+        const selected = currentSuggestions[activeSuggestionIndex >= 0 ? activeSuggestionIndex : 0];
+        if (selected) addStock(selected);
+    }
+
+    if (event.key === "Escape") {
+        event.preventDefault();
+        suggestionsEl.classList.remove("open");
+        hideColumnSettings();
+        stockInput.blur();
+    }
+});
+
+document.addEventListener("click", (event) => {
+    if (!contextMenu.contains(event.target)) hideContextMenu();
+    if (!event.target.closest(".search-wrap")) suggestionsEl.classList.remove("open");
+    if (!event.target.closest(".column-settings")) hideColumnSettings();
+});
+
+document.addEventListener("keydown", (event) => {
+    if (event.key !== "F2") return;
+
+    event.preventDefault();
+    closeTabDialog();
+    hideContextMenu();
+    hideColumnSettings();
+    stockInput.focus();
+    stockInput.select();
+    if (stockInput.value.trim()) renderSuggestions();
+});
+
+window.addEventListener("resize", () => {
+    hideContextMenu();
+    hideColumnSettings();
+});
+
+refreshStockCatalog();
+render();
