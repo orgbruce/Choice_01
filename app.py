@@ -2,21 +2,26 @@ from __future__ import annotations
 
 import json
 import math
+import os
 import time
 import unicodedata
+from functools import wraps
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 from urllib.error import URLError
 from urllib.request import Request, urlopen
 
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, jsonify, redirect, render_template, request, session, url_for
+from werkzeug.security import check_password_hash, generate_password_hash
 
 app = Flask(__name__)
+app.secret_key = os.environ.get("CHOICE_SECRET_KEY", "choice-dev-secret-change-me")
 app.config["TEMPLATES_AUTO_RELOAD"] = True
 MAX_UPDATE_WORKERS = 8
 STOCK_LIST_PATH = Path(__file__).with_name("stock_list.json")
+USER_STORE_PATH = Path(__file__).with_name("users.json")
 DEFAULT_STOCK_FIELDS = {
     "price": "-",
     "change_amount": "-",
@@ -51,6 +56,38 @@ PERFORMANCE_FIELDS = {
     "performance_5y",
 }
 FETCHABLE_FIELDS = QUOTE_FIELDS | FUNDAMENTAL_FIELDS | PERFORMANCE_FIELDS
+
+
+def load_users() -> dict[str, dict[str, str]]:
+    if not USER_STORE_PATH.exists():
+        return {}
+
+    try:
+        with USER_STORE_PATH.open(encoding="utf-8") as file:
+            payload = json.load(file)
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+    return payload if isinstance(payload, dict) else {}
+
+
+def save_users(users: dict[str, dict[str, str]]) -> None:
+    with USER_STORE_PATH.open("w", encoding="utf-8") as file:
+        json.dump(users, file, ensure_ascii=False, indent=2)
+
+
+def login_required(view: Callable[..., Any]) -> Callable[..., Any]:
+    @wraps(view)
+    def wrapped(*args: Any, **kwargs: Any) -> Any:
+        if session.get("username"):
+            return view(*args, **kwargs)
+
+        if request.path.startswith("/api/"):
+            return jsonify({"error": "login required"}), 401
+
+        return redirect(url_for("login", next=request.path))
+
+    return wrapped
 
 
 @app.after_request
@@ -687,21 +724,66 @@ def fetch_stock_snapshot(ticker: str, requested_fields: set[str]) -> dict[str, s
 
 
 @app.route("/")
+@login_required
 def index() -> str:
-    return render_template("index.html", stocks=load_stock_list())
+    return render_template("index.html", stocks=load_stock_list(), username=session.get("username"))
+
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if session.get("username"):
+        return redirect(url_for("index"))
+
+    error = ""
+    mode = request.form.get("mode", "login")
+    next_url = request.args.get("next") or url_for("index")
+
+    if request.method == "POST":
+        username = request.form.get("username", "").strip()
+        password = request.form.get("password", "")
+        users = load_users()
+
+        if not username or not password:
+            error = "아이디와 비밀번호를 입력하세요."
+        elif mode == "register":
+            if username in users:
+                error = "이미 존재하는 아이디입니다."
+            else:
+                users[username] = {"password_hash": generate_password_hash(password)}
+                save_users(users)
+                session["username"] = username
+                return redirect(next_url)
+        else:
+            user = users.get(username)
+            if not user or not check_password_hash(user.get("password_hash", ""), password):
+                error = "아이디 또는 비밀번호가 올바르지 않습니다."
+            else:
+                session["username"] = username
+                return redirect(next_url)
+
+    return render_template("login.html", error=error, mode=mode, next_url=next_url)
+
+
+@app.post("/logout")
+def logout():
+    session.clear()
+    return redirect(url_for("login"))
 
 
 @app.get("/api/stocks")
+@login_required
 def list_stocks():
     return jsonify({"stocks": load_stock_list()})
 
 
 @app.get("/api/stocks/search")
+@login_required
 def search_stock_list():
     return jsonify({"stocks": search_stocks(request.args.get("q", ""))})
 
 
 @app.post("/api/stocks/update")
+@login_required
 def update_stocks():
     data = request.get_json(silent=True) or {}
     tickers = data.get("tickers", [])

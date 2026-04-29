@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="ko">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Choice 로그인</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="auth-body">
+    <main class="auth-shell">
+        <section class="auth-panel" aria-labelledby="authTitle">
+            <div class="auth-brand">
+                <span class="brand-mark">C</span>
+                <div>
+                    <h1 id="authTitle">Choice</h1>
+                    <p>관심 종목을 내 계정으로 관리하세요.</p>
+                </div>
+            </div>
+
+            <form class="auth-form" method="post" action="{{ url_for('login', next=next_url) }}">
+                <input type="hidden" id="authModeInput" name="mode" value="{{ mode }}">
+
+                <div class="auth-switch" role="tablist" aria-label="로그인 방식">
+                    <button class="auth-switch-button{% if mode != 'register' %} active{% endif %}" type="button" data-mode="login">로그인</button>
+                    <button class="auth-switch-button{% if mode == 'register' %} active{% endif %}" type="button" data-mode="register">회원가입</button>
+                </div>
+
+                {% if error %}
+                    <p class="auth-error">{{ error }}</p>
+                {% endif %}
+
+                <label class="auth-field">
+                    <span>아이디</span>
+                    <input name="username" type="text" autocomplete="username" required autofocus>
+                </label>
+
+                <label class="auth-field">
+                    <span>비밀번호</span>
+                    <input name="password" type="password" autocomplete="current-password" required>
+                </label>
+
+                <button id="authSubmitButton" class="auth-submit" type="submit">
+                    {% if mode == 'register' %}회원가입{% else %}로그인{% endif %}
+                </button>
+            </form>
+        </section>
+    </main>
+
+    <script>
+        const modeInput = document.getElementById("authModeInput");
+        const submitButton = document.getElementById("authSubmitButton");
+        document.querySelectorAll(".auth-switch-button").forEach((button) => {
+            button.addEventListener("click", () => {
+                modeInput.value = button.dataset.mode;
+                submitButton.textContent = button.dataset.mode === "register" ? "회원가입" : "로그인";
+                document.querySelectorAll(".auth-switch-button").forEach((item) => {
+                    item.classList.toggle("active", item === button);
+                });
+            });
+        });
+    </script>
+</body>
+</html>
