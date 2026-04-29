@@ -1,0 +1,81 @@
+
+Git이란?
+내 컴퓨터에서 코드 변경을 기록하는 시스템
+
+GitHub란?
+Git으로 관리한 코드를 인터넷에 올리는 곳
+
+
+git remote add origin https://github.com/orgbruce/Choice_01.git
+
+
+의도치 않은 폴더에 아래의 명령을 하였을때 취소하는 방법 
+
+명령 취소 
+
+git config --global user.email "you@example.com"
+git config --global user.name "Your Name"
+
+git init
+git add .
+git commit -m "first commit"
+git remote add origin https://github.com/아이디/레포이름.git
+git branch -M main
+git push -u origin main
+
+PowerShell
+Windows Terminal
+CMD = 도스창(거의 같은 의미)
+터미널 = CMD를 포함한 더 큰 개념
+
+cd = 체인지 디렉토리 
+
+디렉토리 = 폴더 
+
+폴더는 주소가 아니라 폴더(디렉토리)경로
+
+- - -
+
+커밋 : 변경사항을 저장하는 스냅샷 - 현재 상태 저장
+ex) 
+git add .
+git commit -m "회원가입 기능 추가"
+
+포크(Fork) : 남의 프로젝트를 내 계정으로 복사
+다른 사람 레포 → Fork 클릭
+ex) 포크는 명령어가 없음 -> GitHub에서 Fork 버튼 클릭
+
+Push (푸시)
+내 컴퓨터 → GitHub로 업로드
+ex) git push origin main
+
+Pull (풀)
+GitHub → 내 컴퓨터로 최신 코드 가져오기
+ex) git pull origin main
+
+Clone (클론)
+GitHub에 있는 프로젝트를 처음부터 내 컴퓨터에 복사
+ex) git clone https://github.com/아이디/레포.git
+
+pull → 작업 → commit → push
+
+clone  “처음 가져오기”
+pull  “업데이트 받기”
+push  “업데이트 올리기”
+
+
+혼자 작업할 때
+commit → push
+
+
+남의 프로젝트 수정할 때
+fork → clone → 수정 → commit → push → PR
+
+이제 과장님은 제것 2star 를 클론해서 프로젝트 폴더에 세팅해보시고
+저는 과장님의 choice_01을 클론해서 저의 프로젝트 폴더에 세팅해볼게요
+
+git clone https://github.com/orgbruce/Choice_01.git
+
+깃허브* 
+https://github.com/orgbruce/Choice_01
+https://github.com/ksh2530-hue/2star
