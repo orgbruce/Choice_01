@@ -47,6 +47,7 @@ const COLUMN_GROUPS = [
 
 const DEFAULT_VISIBLE_COLUMNS = COLUMN_DEFS.map((column) => column.key);
 const DEFAULT_COLUMN_GROUP = COLUMN_GROUPS[0].key;
+const FIXED_COLUMN_KEYS = new Set(["name"]);
 const FETCHABLE_COLUMN_KEYS = new Set([
     "price",
     "change_amount",
@@ -74,6 +75,12 @@ const addTabButton = document.getElementById("addTabButton");
 const stockInput = document.getElementById("stockInput");
 const suggestionsEl = document.getElementById("suggestions");
 const suggestionStatusEl = document.getElementById("suggestionStatus");
+const topHorizontalScrollEl = document.getElementById("topHorizontalScroll");
+const topHorizontalScrollInnerEl = document.getElementById("topHorizontalScrollInner");
+const bottomHorizontalScrollEl = document.getElementById("bottomHorizontalScroll");
+const bottomHorizontalScrollInnerEl = document.getElementById("bottomHorizontalScrollInner");
+const stockTableScrollEl = document.getElementById("stockTableScroll");
+const fixedColumnCurtainEl = document.getElementById("fixedColumnCurtain");
 const tableHeadEl = document.getElementById("tableHead");
 const stockListEl = document.getElementById("stockList");
 const emptyStateEl = document.getElementById("emptyState");
@@ -101,6 +108,9 @@ const averagePriceInput = document.getElementById("averagePriceInput");
 const averagePriceError = document.getElementById("averagePriceError");
 const cancelAveragePriceDialogButton = document.getElementById("cancelAveragePriceDialogButton");
 const confirmAveragePriceDialogButton = document.getElementById("confirmAveragePriceDialogButton");
+const memoTooltipEl = document.createElement("div");
+memoTooltipEl.className = "memo-tooltip";
+document.body.appendChild(memoTooltipEl);
 
 let state = loadState();
 let contextTabId = null;
@@ -109,6 +119,8 @@ let editingAveragePriceTicker = null;
 let activeSuggestionIndex = -1;
 let draggedTicker = null;
 let dragHandleArmedTicker = null;
+let draggedColumnKey = null;
+let resizingColumn = null;
 let isUpdating = false;
 let tabDialogMode = "create";
 let editingTabId = null;
@@ -146,6 +158,14 @@ function createDefaultGroupVisibleColumns() {
     return Object.fromEntries(COLUMN_GROUPS.map((group) => [group.key, [...group.columns]]));
 }
 
+function createDefaultGroupColumnOrder() {
+    return Object.fromEntries(COLUMN_GROUPS.map((group) => [group.key, [...group.columns]]));
+}
+
+function createDefaultGroupColumnWidths() {
+    return Object.fromEntries(COLUMN_GROUPS.map((group) => [group.key, {}]));
+}
+
 function normalizeGroupVisibleColumns(groupColumns) {
     const defaults = createDefaultGroupVisibleColumns();
     if (!groupColumns || typeof groupColumns !== "object") return defaults;
@@ -156,6 +176,43 @@ function normalizeGroupVisibleColumns(groupColumns) {
         const validColumns = groupColumns[group.key].filter((key) => group.columns.includes(key));
         return [group.key, validColumns];
     }));
+}
+
+function normalizeGroupColumnOrder(groupOrder) {
+    const defaults = createDefaultGroupColumnOrder();
+    if (!groupOrder || typeof groupOrder !== "object") return defaults;
+
+    return Object.fromEntries(COLUMN_GROUPS.map((group) => {
+        const saved = Array.isArray(groupOrder[group.key]) ? groupOrder[group.key] : [];
+        const ordered = saved.filter((key) => group.columns.includes(key));
+        const missing = group.columns.filter((key) => !ordered.includes(key));
+        return [group.key, withFixedColumns([...ordered, ...missing])];
+    }));
+}
+
+function normalizeGroupColumnWidths(widths) {
+    const defaults = createDefaultGroupColumnWidths();
+    if (!widths || typeof widths !== "object") return defaults;
+
+    return Object.fromEntries(COLUMN_GROUPS.map((group) => {
+        const groupWidths = widths[group.key];
+        if (!groupWidths || typeof groupWidths !== "object" || Array.isArray(groupWidths)) {
+            return [group.key, {}];
+        }
+
+        return [
+            group.key,
+            Object.fromEntries(
+                Object.entries(groupWidths)
+                    .filter(([key, value]) => group.columns.includes(key) && Number.isFinite(Number(value)))
+                    .map(([key, value]) => [key, Math.max(72, Number(value))]),
+            ),
+        ];
+    }));
+}
+
+function withFixedColumns(columns) {
+    return ["name", ...columns.filter((key) => key !== "name")];
 }
 
 function getColumnGroup(groupKey = state.activeColumnGroup) {
@@ -181,6 +238,8 @@ function loadState() {
                 visibleColumns: shouldResetColumns ? [...DEFAULT_VISIBLE_COLUMNS] : normalizeVisibleColumns(saved.visibleColumns),
                 activeColumnGroup: normalizeColumnGroup(saved.activeColumnGroup),
                 groupVisibleColumns: shouldResetColumns ? createDefaultGroupVisibleColumns() : normalizeGroupVisibleColumns(saved.groupVisibleColumns),
+                groupColumnOrder: shouldResetColumns ? createDefaultGroupColumnOrder() : normalizeGroupColumnOrder(saved.groupColumnOrder),
+                groupColumnWidths: shouldResetColumns ? createDefaultGroupColumnWidths() : normalizeGroupColumnWidths(saved.groupColumnWidths),
                 columnSchemaVersion: COLUMN_SCHEMA_VERSION,
             };
         }
@@ -195,6 +254,8 @@ function loadState() {
         visibleColumns: [...DEFAULT_VISIBLE_COLUMNS],
         activeColumnGroup: DEFAULT_COLUMN_GROUP,
         groupVisibleColumns: createDefaultGroupVisibleColumns(),
+        groupColumnOrder: createDefaultGroupColumnOrder(),
+        groupColumnWidths: createDefaultGroupColumnWidths(),
         columnSchemaVersion: COLUMN_SCHEMA_VERSION,
     };
 }
@@ -205,15 +266,22 @@ function saveState() {
 
 function getVisibleColumns() {
     state.groupVisibleColumns = normalizeGroupVisibleColumns(state.groupVisibleColumns);
+    state.groupColumnOrder = normalizeGroupColumnOrder(state.groupColumnOrder);
     const activeGroup = getColumnGroup();
-    return state.groupVisibleColumns[activeGroup.key]
+    const visibleKeys = new Set(state.groupVisibleColumns[activeGroup.key]);
+    visibleKeys.add("name");
+    return state.groupColumnOrder[activeGroup.key]
+        .filter((key) => visibleKeys.has(key))
         .map(getColumnByKey)
         .filter(Boolean);
 }
 
 function applyGridColumns() {
-    const columnWidths = getVisibleColumns().map((column) => column.width).join(" ");
-    document.documentElement.style.setProperty("--stock-grid-columns", `42px ${columnWidths} 52px`);
+    const activeGroup = getColumnGroup();
+    state.groupColumnWidths = normalizeGroupColumnWidths(state.groupColumnWidths);
+    const widths = state.groupColumnWidths[activeGroup.key] || {};
+    const columnWidths = getVisibleColumns().map((column) => widths[column.key] ? `${widths[column.key]}px` : column.width).join(" ");
+    document.documentElement.style.setProperty("--stock-grid-columns", `var(--drag-column-width) ${columnWidths} 52px`);
 }
 
 function getActiveTab() {
@@ -232,6 +300,7 @@ function render() {
     renderColumnSettings();
     renderTableHead();
     renderStocks();
+    updateTopHorizontalScroll();
     saveState();
 }
 
@@ -334,13 +403,205 @@ function renderTableHead() {
     tableHeadEl.appendChild(document.createElement("span"));
 
     getVisibleColumns().forEach((column) => {
-        const cell = document.createElement("span");
-        cell.textContent = column.label;
+        const cell = document.createElement("button");
+        cell.className = `stock-header-cell${FIXED_COLUMN_KEYS.has(column.key) ? " fixed" : ""}`;
+        cell.type = "button";
+        cell.draggable = !FIXED_COLUMN_KEYS.has(column.key);
+        cell.dataset.columnKey = column.key;
+        cell.title = FIXED_COLUMN_KEYS.has(column.key) ? "고정 열" : "열 위치 변경";
+
+        const label = document.createElement("span");
+        label.textContent = column.label;
+
+        const resizeHandle = document.createElement("span");
+        resizeHandle.className = "column-resize-handle";
+        resizeHandle.dataset.columnKey = column.key;
+        resizeHandle.title = "열 너비 조절";
+
+        cell.append(label, resizeHandle);
         tableHeadEl.appendChild(cell);
     });
 
     tableHeadEl.appendChild(document.createElement("span"));
+    bindHeaderColumnDrag();
+    bindHeaderColumnResize();
 }
+
+function bindHeaderColumnDrag() {
+    tableHeadEl.querySelectorAll(".stock-header-cell").forEach((cell) => {
+        cell.addEventListener("dragstart", (event) => {
+            const columnKey = cell.dataset.columnKey;
+            if (!columnKey || FIXED_COLUMN_KEYS.has(columnKey)) {
+                event.preventDefault();
+                return;
+            }
+
+            draggedColumnKey = columnKey;
+            cell.classList.add("dragging");
+            event.dataTransfer.effectAllowed = "move";
+            event.dataTransfer.setData("text/plain", columnKey);
+        });
+
+        cell.addEventListener("dragend", () => {
+            draggedColumnKey = null;
+            tableHeadEl.querySelectorAll(".stock-header-cell").forEach((item) => {
+                item.classList.remove("dragging", "drop-target");
+            });
+        });
+
+        cell.addEventListener("dragover", (event) => {
+            if (!draggedColumnKey) return;
+            event.preventDefault();
+            const targetKey = cell.dataset.columnKey;
+            if (!targetKey || targetKey === draggedColumnKey || FIXED_COLUMN_KEYS.has(targetKey)) return;
+
+            tableHeadEl.querySelectorAll(".stock-header-cell.drop-target").forEach((item) => {
+                item.classList.remove("drop-target");
+            });
+            cell.classList.add("drop-target");
+        });
+
+        cell.addEventListener("drop", (event) => {
+            event.preventDefault();
+            moveVisibleColumn(draggedColumnKey, cell.dataset.columnKey);
+        });
+    });
+}
+
+function moveVisibleColumn(sourceKey, targetKey) {
+    if (!sourceKey || !targetKey || sourceKey === targetKey) return;
+    if (FIXED_COLUMN_KEYS.has(sourceKey) || FIXED_COLUMN_KEYS.has(targetKey)) return;
+
+    const activeGroup = getColumnGroup();
+    const order = withFixedColumns([...(state.groupColumnOrder[activeGroup.key] || activeGroup.columns)]);
+    const sourceIndex = order.indexOf(sourceKey);
+    const targetIndex = order.indexOf(targetKey);
+    if (sourceIndex < 0 || targetIndex < 0) return;
+
+    const [moved] = order.splice(sourceIndex, 1);
+    order.splice(targetIndex, 0, moved);
+    state.groupColumnOrder[activeGroup.key] = withFixedColumns(order);
+    render();
+}
+
+function bindHeaderColumnResize() {
+    tableHeadEl.querySelectorAll(".column-resize-handle").forEach((handle) => {
+        handle.addEventListener("pointerdown", (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+
+            const columnKey = handle.dataset.columnKey;
+            const cell = handle.closest(".stock-header-cell");
+            if (!columnKey || !cell) return;
+
+            const activeGroup = getColumnGroup();
+            state.groupColumnWidths = normalizeGroupColumnWidths(state.groupColumnWidths);
+            resizingColumn = {
+                groupKey: activeGroup.key,
+                columnKey,
+                startX: event.clientX,
+                startWidth: cell.getBoundingClientRect().width,
+                pointerId: event.pointerId,
+                handle,
+            };
+
+            document.body.classList.add("is-resizing-column");
+            cell.classList.add("resizing");
+            if (handle.setPointerCapture) handle.setPointerCapture(event.pointerId);
+        });
+    });
+}
+
+function applyLiveColumnWidths() {
+    applyGridColumns();
+    tableHeadEl.style.gridTemplateColumns = "var(--stock-grid-columns)";
+    stockListEl.querySelectorAll(".stock-row").forEach((row) => {
+        row.style.gridTemplateColumns = "var(--stock-grid-columns)";
+    });
+    updateTopHorizontalScroll();
+}
+
+function updateTopHorizontalScroll() {
+    if (!topHorizontalScrollEl || !topHorizontalScrollInnerEl || !bottomHorizontalScrollEl || !bottomHorizontalScrollInnerEl || !stockTableScrollEl) return;
+
+    window.requestAnimationFrame(() => {
+        updateFixedColumnMaskWidth();
+        const scrollWidth = stockTableScrollEl.scrollWidth;
+        const clientWidth = stockTableScrollEl.clientWidth;
+        const fixedWidth = getFixedColumnMaskWidth();
+        const scrollInnerWidth = `${Math.max(0, scrollWidth - fixedWidth)}px`;
+        topHorizontalScrollInnerEl.style.width = scrollInnerWidth;
+        bottomHorizontalScrollInnerEl.style.width = scrollInnerWidth;
+        if (fixedColumnCurtainEl) {
+            fixedColumnCurtainEl.style.setProperty("--fixed-column-curtain-height", `${stockTableScrollEl.scrollHeight}px`);
+        }
+        const shouldHide = scrollWidth <= clientWidth + 1;
+        topHorizontalScrollEl.classList.toggle("hidden", shouldHide);
+        bottomHorizontalScrollEl.classList.toggle("hidden", shouldHide);
+        topHorizontalScrollEl.scrollLeft = stockTableScrollEl.scrollLeft;
+        bottomHorizontalScrollEl.scrollLeft = stockTableScrollEl.scrollLeft;
+    });
+}
+
+let isSyncingHorizontalScroll = false;
+
+function syncHorizontalScroll(source) {
+    if (!source || isSyncingHorizontalScroll) return;
+
+    isSyncingHorizontalScroll = true;
+    const nextScrollLeft = source.scrollLeft;
+    [stockTableScrollEl, topHorizontalScrollEl, bottomHorizontalScrollEl]
+        .filter((target) => target && target !== source)
+        .forEach((target) => {
+            target.scrollLeft = nextScrollLeft;
+        });
+    window.requestAnimationFrame(() => {
+        isSyncingHorizontalScroll = false;
+    });
+}
+
+function getFixedColumnMaskWidth() {
+    const value = Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--fixed-stock-columns-width"));
+    return Number.isFinite(value) ? value : 190;
+}
+
+function updateFixedColumnMaskWidth() {
+    const firstRow = stockListEl.querySelector(".stock-row") || tableHeadEl;
+    const nameCell = firstRow.querySelector(".stock-name") || tableHeadEl.querySelector('[data-column-key="name"]');
+    if (!nameCell || !stockTableScrollEl) return;
+
+    const tableRect = stockTableScrollEl.getBoundingClientRect();
+    const nameRect = nameCell.getBoundingClientRect();
+    const width = Math.max(0, Math.ceil(nameRect.right - tableRect.left));
+    document.documentElement.style.setProperty("--fixed-stock-columns-width", `${width}px`);
+}
+
+document.addEventListener("pointermove", (event) => {
+    if (!resizingColumn || resizingColumn.pointerId !== event.pointerId) return;
+
+    const nextWidth = Math.max(72, Math.round(resizingColumn.startWidth + event.clientX - resizingColumn.startX));
+    state.groupColumnWidths[resizingColumn.groupKey][resizingColumn.columnKey] = nextWidth;
+    applyLiveColumnWidths();
+});
+
+function finishColumnResize(event) {
+    if (!resizingColumn) return;
+    if (event?.pointerId != null && resizingColumn.pointerId !== event.pointerId) return;
+
+    try {
+        resizingColumn.handle?.releasePointerCapture?.(resizingColumn.pointerId);
+    } catch (error) {
+        console.warn("컬럼 너비 조절 종료 처리 실패", error);
+    }
+
+    tableHeadEl.querySelectorAll(".stock-header-cell.resizing").forEach((cell) => cell.classList.remove("resizing"));
+    resizingColumn = null;
+    document.body.classList.remove("is-resizing-column");
+    saveState();
+}
+
+document.addEventListener("pointerup", finishColumnResize);
+document.addEventListener("pointercancel", finishColumnResize);
 
 function renderStocks() {
     const activeTab = getActiveTab();
@@ -359,13 +620,14 @@ function renderStocks() {
         dragHandle.type = "button";
         dragHandle.title = "순서 변경";
         dragHandle.draggable = true;
-        dragHandle.textContent = "::";
+        dragHandle.textContent = "☰";
         row.appendChild(dragHandle);
 
         getVisibleColumns().forEach((column) => {
             const cell = document.createElement("span");
             const valueClass = typeof column.valueClass === "function" ? column.valueClass(stock[column.key]) : "";
             cell.className = ["stock-cell", column.className || "", valueClass].filter(Boolean).join(" ");
+            cell.dataset.label = column.label;
             cell.textContent = column.key === "average_price"
                 ? formatAveragePrice(stock.average_price)
                 : stock[column.key] || "-";
@@ -376,6 +638,14 @@ function renderStocks() {
                 cell.classList.toggle("has-memo", Boolean(memo));
                 if (memo) {
                     cell.dataset.memo = memo;
+                    const memoMark = document.createElement("span");
+                    memoMark.className = "memo-mark";
+                    memoMark.textContent = "★";
+                    memoMark.setAttribute("aria-label", "메모 있음");
+                    cell.prepend(memoMark);
+                    cell.addEventListener("mouseenter", (event) => showMemoTooltip(memo, event.clientX, event.clientY));
+                    cell.addEventListener("mousemove", (event) => moveMemoTooltip(event.clientX, event.clientY));
+                    cell.addEventListener("mouseleave", hideMemoTooltip);
                 }
 
                 cell.addEventListener("contextmenu", (event) => {
@@ -456,6 +726,27 @@ function getChangeClass(change) {
     if (change.startsWith("+")) return "positive";
     if (change.startsWith("-")) return "negative";
     return "";
+}
+
+function showMemoTooltip(memo, x, y) {
+    memoTooltipEl.textContent = memo;
+    memoTooltipEl.classList.add("open");
+    moveMemoTooltip(x, y);
+}
+
+function moveMemoTooltip(x, y) {
+    if (!memoTooltipEl.classList.contains("open")) return;
+
+    const margin = 12;
+    const rect = memoTooltipEl.getBoundingClientRect();
+    const left = Math.min(Math.max(margin, x + 12), window.innerWidth - rect.width - margin);
+    const top = Math.min(Math.max(margin, y + 12), window.innerHeight - rect.height - margin);
+    memoTooltipEl.style.left = `${left}px`;
+    memoTooltipEl.style.top = `${top}px`;
+}
+
+function hideMemoTooltip() {
+    memoTooltipEl.classList.remove("open");
 }
 
 function addTab() {
@@ -893,6 +1184,9 @@ renameTabButton.addEventListener("click", renameTab);
 writeMemoButton.addEventListener("click", openMemoDialog);
 updateButton.addEventListener("click", updateActiveStocks);
 columnSettingsButton.addEventListener("click", toggleColumnSettings);
+stockTableScrollEl.addEventListener("scroll", () => syncHorizontalScroll(stockTableScrollEl));
+topHorizontalScrollEl.addEventListener("scroll", () => syncHorizontalScroll(topHorizontalScrollEl));
+bottomHorizontalScrollEl.addEventListener("scroll", () => syncHorizontalScroll(bottomHorizontalScrollEl));
 cancelTabDialogButton.addEventListener("click", closeTabDialog);
 confirmTabDialogButton.addEventListener("click", confirmTabDialog);
 cancelMemoDialogButton.addEventListener("click", closeMemoDialog);
@@ -1038,6 +1332,7 @@ window.addEventListener("resize", () => {
     hideContextMenu();
     hideStockContextMenu();
     hideColumnSettings();
+    updateTopHorizontalScroll();
 });
 
 refreshStockCatalog();

@@ -1,5 +1,8 @@
 {
   "orgbruce": {
     "password_hash": "scrypt:32768:8:1$d4O0meegcvCfdOtL$cda18224fe1c00ac3a2f6a6f706b2d26197b1fb952c59968b8b1795c76c6ed4f797bafe87cf080f46b8ea3b4ac603baacc0299a1ee349d0d4482103f741822bc"
+  },
+  "joseph": {
+    "password_hash": "scrypt:32768:8:1$8spQAktbEkWszS9B$da2434d88848630b81fe77993c94c83bee6c6994db3f197f9e0465d8c3616c00b41a38beb4d95b660899d2d8e5981a87fce3296f8fae46c0c2f92570cbfc2962"
   }
 }

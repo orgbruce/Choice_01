@@ -51,10 +51,19 @@
                         <div id="columnSettingsMenu" class="column-settings-menu" aria-label="테이블 컬럼 설정"></div>
                     </div>
                 </div>
-                <div id="tableHead" class="table-head"></div>
-                <div id="stockList" class="stock-list" aria-live="polite"></div>
-                <div id="emptyState" class="empty-state">
-                    관심종목을 검색해서 현재 탭에 추가하세요.
+                <div id="topHorizontalScroll" class="top-horizontal-scroll" aria-hidden="true">
+                    <div id="topHorizontalScrollInner" class="top-horizontal-scroll-inner"></div>
+                </div>
+                <div id="stockTableScroll" class="stock-table-scroll">
+                    <div id="fixedColumnCurtain" class="fixed-column-curtain" aria-hidden="true"></div>
+                    <div id="tableHead" class="table-head"></div>
+                    <div id="stockList" class="stock-list" aria-live="polite"></div>
+                    <div id="emptyState" class="empty-state">
+                        관심종목을 검색해서 현재 탭에 추가하세요.
+                    </div>
+                </div>
+                <div id="bottomHorizontalScroll" class="bottom-horizontal-scroll" aria-hidden="true">
+                    <div id="bottomHorizontalScrollInner" class="bottom-horizontal-scroll-inner"></div>
                 </div>
             </section>
         </main>
