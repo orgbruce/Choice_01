@@ -1,11 +1,12 @@
 let STOCKS = Array.isArray(window.CHOICE_STOCKS) ? window.CHOICE_STOCKS : [];
 const STORAGE_KEY = "choice.state.v1";
-const COLUMN_SCHEMA_VERSION = 4;
+const COLUMN_SCHEMA_VERSION = 5;
 
 const COLUMN_DEFS = [
     { key: "name", label: "종목명", className: "stock-name", width: "minmax(140px, 1.4fr)" },
     { key: "ticker", label: "티커", width: "minmax(82px, 0.9fr)" },
     { key: "price", label: "현재가", width: "minmax(74px, 0.85fr)" },
+    { key: "average_price", label: "평단가", className: "average-price-cell", width: "minmax(78px, 0.85fr)" },
     { key: "change_amount", label: "변동", width: "minmax(74px, 0.85fr)", valueClass: getChangeClass },
     { key: "change", label: "오늘변동률", width: "minmax(84px, 0.9fr)", valueClass: getChangeClass },
     { key: "volume", label: "거래량", width: "minmax(74px, 0.85fr)" },
@@ -30,7 +31,7 @@ const COLUMN_GROUPS = [
     {
         key: "price",
         label: "가격",
-        columns: ["name", "ticker", "price", "change", "volume", "close", "open", "high", "low"],
+        columns: ["name", "ticker", "price", "average_price", "change", "volume", "close", "open", "high", "low"],
     },
     {
         key: "fundamental",
@@ -82,15 +83,29 @@ const columnSettingsButton = document.getElementById("columnSettingsButton");
 const columnSettingsMenu = document.getElementById("columnSettingsMenu");
 const contextMenu = document.getElementById("contextMenu");
 const renameTabButton = document.getElementById("renameTabButton");
+const stockContextMenu = document.getElementById("stockContextMenu");
+const writeMemoButton = document.getElementById("writeMemoButton");
 const tabDialogOverlay = document.getElementById("tabDialogOverlay");
 const tabDialogTitle = document.getElementById("tabDialogTitle");
 const tabNameInput = document.getElementById("tabNameInput");
 const tabNameError = document.getElementById("tabNameError");
 const cancelTabDialogButton = document.getElementById("cancelTabDialogButton");
 const confirmTabDialogButton = document.getElementById("confirmTabDialogButton");
+const memoDialogOverlay = document.getElementById("memoDialogOverlay");
+const memoInput = document.getElementById("memoInput");
+const memoError = document.getElementById("memoError");
+const cancelMemoDialogButton = document.getElementById("cancelMemoDialogButton");
+const confirmMemoDialogButton = document.getElementById("confirmMemoDialogButton");
+const averagePriceDialogOverlay = document.getElementById("averagePriceDialogOverlay");
+const averagePriceInput = document.getElementById("averagePriceInput");
+const averagePriceError = document.getElementById("averagePriceError");
+const cancelAveragePriceDialogButton = document.getElementById("cancelAveragePriceDialogButton");
+const confirmAveragePriceDialogButton = document.getElementById("confirmAveragePriceDialogButton");
 
 let state = loadState();
 let contextTabId = null;
+let contextStockTicker = null;
+let editingAveragePriceTicker = null;
 let activeSuggestionIndex = -1;
 let draggedTicker = null;
 let dragHandleArmedTicker = null;
@@ -351,7 +366,37 @@ function renderStocks() {
             const cell = document.createElement("span");
             const valueClass = typeof column.valueClass === "function" ? column.valueClass(stock[column.key]) : "";
             cell.className = ["stock-cell", column.className || "", valueClass].filter(Boolean).join(" ");
-            cell.textContent = stock[column.key] || "-";
+            cell.textContent = column.key === "average_price"
+                ? formatAveragePrice(stock.average_price)
+                : stock[column.key] || "-";
+
+            if (column.key === "name") {
+                const memo = String(stock.memo || "").trim();
+                cell.dataset.ticker = stock.ticker;
+                cell.classList.toggle("has-memo", Boolean(memo));
+                if (memo) {
+                    cell.dataset.memo = memo;
+                }
+
+                cell.addEventListener("contextmenu", (event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    contextStockTicker = stock.ticker;
+                    showStockContextMenu(event.clientX, event.clientY);
+                });
+            }
+
+            if (column.key === "average_price") {
+                cell.tabIndex = 0;
+                cell.title = "평단가 입력";
+                cell.addEventListener("click", () => openAveragePriceDialog(stock.ticker));
+                cell.addEventListener("keydown", (event) => {
+                    if (event.key !== "Enter" && event.key !== " ") return;
+                    event.preventDefault();
+                    openAveragePriceDialog(stock.ticker);
+                });
+            }
+
             row.appendChild(cell);
         });
 
@@ -447,6 +492,101 @@ function renameTab() {
     hideContextMenu();
 }
 
+function getContextStock() {
+    const activeTab = getActiveTab();
+    return activeTab.stocks.find((stock) => stock.ticker === contextStockTicker);
+}
+
+function openMemoDialog() {
+    const stock = getContextStock();
+    if (!stock) return;
+
+    memoInput.value = stock.memo || "";
+    memoError.textContent = "";
+    memoDialogOverlay.classList.add("open");
+    memoDialogOverlay.setAttribute("aria-hidden", "false");
+    hideContextMenu();
+    hideStockContextMenu();
+    hideColumnSettings();
+    suggestionsEl.classList.remove("open");
+    window.setTimeout(() => {
+        memoInput.focus();
+        memoInput.select();
+    }, 0);
+}
+
+function closeMemoDialog() {
+    memoDialogOverlay.classList.remove("open");
+    memoDialogOverlay.setAttribute("aria-hidden", "true");
+    memoInput.value = "";
+    memoError.textContent = "";
+}
+
+function confirmMemoDialog() {
+    const stock = getContextStock();
+    if (!stock) return;
+
+    const memo = memoInput.value.trim();
+    stock.memo = memo;
+    closeMemoDialog();
+    render();
+}
+
+function normalizeNumberInput(value) {
+    return String(value || "").replace(/[^\d]/g, "");
+}
+
+function formatAveragePrice(value) {
+    const digits = normalizeNumberInput(value);
+    return digits ? Number(digits).toLocaleString("ko-KR") : "-";
+}
+
+function formatAveragePriceInput(value) {
+    const digits = normalizeNumberInput(value);
+    return digits ? Number(digits).toLocaleString("ko-KR") : "";
+}
+
+function getEditingAveragePriceStock() {
+    const activeTab = getActiveTab();
+    return activeTab.stocks.find((stock) => stock.ticker === editingAveragePriceTicker);
+}
+
+function openAveragePriceDialog(ticker) {
+    editingAveragePriceTicker = ticker;
+    const stock = getEditingAveragePriceStock();
+    if (!stock) return;
+
+    averagePriceInput.value = formatAveragePriceInput(stock.average_price);
+    averagePriceError.textContent = "";
+    averagePriceDialogOverlay.classList.add("open");
+    averagePriceDialogOverlay.setAttribute("aria-hidden", "false");
+    hideContextMenu();
+    hideStockContextMenu();
+    hideColumnSettings();
+    suggestionsEl.classList.remove("open");
+    window.setTimeout(() => {
+        averagePriceInput.focus();
+        averagePriceInput.select();
+    }, 0);
+}
+
+function closeAveragePriceDialog() {
+    averagePriceDialogOverlay.classList.remove("open");
+    averagePriceDialogOverlay.setAttribute("aria-hidden", "true");
+    averagePriceInput.value = "";
+    averagePriceError.textContent = "";
+    editingAveragePriceTicker = null;
+}
+
+function confirmAveragePriceDialog() {
+    const stock = getEditingAveragePriceStock();
+    if (!stock) return;
+
+    stock.average_price = normalizeNumberInput(averagePriceInput.value);
+    closeAveragePriceDialog();
+    render();
+}
+
 function openTabDialog(mode, tab = null) {
     tabDialogMode = mode;
     editingTabId = tab ? tab.id : null;
@@ -496,6 +636,7 @@ function confirmTabDialog() {
 }
 
 function showContextMenu(x, y) {
+    hideStockContextMenu();
     contextMenu.style.left = `${x}px`;
     contextMenu.style.top = `${y}px`;
     contextMenu.classList.add("open");
@@ -503,6 +644,17 @@ function showContextMenu(x, y) {
 
 function hideContextMenu() {
     contextMenu.classList.remove("open");
+}
+
+function showStockContextMenu(x, y) {
+    hideContextMenu();
+    stockContextMenu.style.left = `${x}px`;
+    stockContextMenu.style.top = `${y}px`;
+    stockContextMenu.classList.add("open");
+}
+
+function hideStockContextMenu() {
+    stockContextMenu.classList.remove("open");
 }
 
 function toggleColumnSettings() {
@@ -738,13 +890,26 @@ async function updateActiveStocks() {
 
 addTabButton.addEventListener("click", addTab);
 renameTabButton.addEventListener("click", renameTab);
+writeMemoButton.addEventListener("click", openMemoDialog);
 updateButton.addEventListener("click", updateActiveStocks);
 columnSettingsButton.addEventListener("click", toggleColumnSettings);
 cancelTabDialogButton.addEventListener("click", closeTabDialog);
 confirmTabDialogButton.addEventListener("click", confirmTabDialog);
+cancelMemoDialogButton.addEventListener("click", closeMemoDialog);
+confirmMemoDialogButton.addEventListener("click", confirmMemoDialog);
+cancelAveragePriceDialogButton.addEventListener("click", closeAveragePriceDialog);
+confirmAveragePriceDialogButton.addEventListener("click", confirmAveragePriceDialog);
 
 tabDialogOverlay.addEventListener("click", (event) => {
     if (event.target === tabDialogOverlay) closeTabDialog();
+});
+
+memoDialogOverlay.addEventListener("click", (event) => {
+    if (event.target === memoDialogOverlay) closeMemoDialog();
+});
+
+averagePriceDialogOverlay.addEventListener("click", (event) => {
+    if (event.target === averagePriceDialogOverlay) closeAveragePriceDialog();
 });
 
 tabNameInput.addEventListener("input", () => {
@@ -760,6 +925,43 @@ tabNameInput.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
         event.preventDefault();
         closeTabDialog();
+    }
+});
+
+memoInput.addEventListener("input", () => {
+    memoError.textContent = "";
+});
+
+memoInput.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+        event.preventDefault();
+        closeMemoDialog();
+    }
+
+    if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
+        event.preventDefault();
+        confirmMemoDialog();
+    }
+});
+
+averagePriceInput.addEventListener("input", () => {
+    const cursorAtEnd = averagePriceInput.selectionStart === averagePriceInput.value.length;
+    averagePriceInput.value = formatAveragePriceInput(averagePriceInput.value);
+    if (cursorAtEnd) {
+        averagePriceInput.setSelectionRange(averagePriceInput.value.length, averagePriceInput.value.length);
+    }
+    averagePriceError.textContent = "";
+});
+
+averagePriceInput.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+        event.preventDefault();
+        confirmAveragePriceDialog();
+    }
+
+    if (event.key === "Escape") {
+        event.preventDefault();
+        closeAveragePriceDialog();
     }
 });
 
@@ -812,6 +1014,7 @@ stockInput.addEventListener("keydown", (event) => {
 
 document.addEventListener("click", (event) => {
     if (!contextMenu.contains(event.target)) hideContextMenu();
+    if (!stockContextMenu.contains(event.target)) hideStockContextMenu();
     if (!event.target.closest(".search-wrap")) suggestionsEl.classList.remove("open");
     if (!event.target.closest(".column-settings")) hideColumnSettings();
 });
@@ -821,7 +1024,10 @@ document.addEventListener("keydown", (event) => {
 
     event.preventDefault();
     closeTabDialog();
+    closeMemoDialog();
+    closeAveragePriceDialog();
     hideContextMenu();
+    hideStockContextMenu();
     hideColumnSettings();
     stockInput.focus();
     stockInput.select();
@@ -830,6 +1036,7 @@ document.addEventListener("keydown", (event) => {
 
 window.addEventListener("resize", () => {
     hideContextMenu();
+    hideStockContextMenu();
     hideColumnSettings();
 });
 

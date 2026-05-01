@@ -459,7 +459,45 @@ input {
 }
 
 .stock-name {
+    position: relative;
     font-weight: 700;
+}
+
+.stock-name.has-memo {
+    overflow: visible;
+    padding-left: 14px;
+}
+
+.stock-name.has-memo::before {
+    content: "*";
+    position: absolute;
+    top: -7px;
+    left: 1px;
+    color: #ff5aa5;
+    font-size: 17px;
+    font-weight: 900;
+    line-height: 1;
+}
+
+.stock-name.has-memo:hover::after {
+    content: attr(data-memo);
+    position: absolute;
+    z-index: 60;
+    left: 4px;
+    top: calc(100% + 8px);
+    width: max-content;
+    max-width: 240px;
+    padding: 9px 11px;
+    border: 1px solid #f3a3c8;
+    border-radius: 8px;
+    background: #fff5fa;
+    box-shadow: 0 10px 24px rgba(32, 33, 36, 0.18);
+    color: #3c4043;
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 1.45;
+    white-space: pre-wrap;
+    word-break: break-word;
 }
 
 .stock-cell {
@@ -467,6 +505,21 @@ input {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+.stock-cell.stock-name.has-memo {
+    overflow: visible;
+}
+
+.average-price-cell {
+    cursor: pointer;
+}
+
+.average-price-cell:hover,
+.average-price-cell:focus {
+    border-radius: 6px;
+    background: #f1f3f4;
+    outline: none;
 }
 
 .positive {
@@ -618,6 +671,71 @@ input {
 
 .dialog-button.primary:hover {
     background: #1765cc;
+}
+
+.memo-dialog {
+    width: min(360px, calc(100vw - 40px));
+    min-height: 360px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: white;
+    box-shadow: 0 18px 48px rgba(32, 33, 36, 0.28);
+    padding: 22px;
+}
+
+.memo-dialog h2 {
+    margin: 0 0 14px;
+    font-size: 18px;
+    font-weight: 700;
+}
+
+.memo-input {
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    min-height: 230px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 12px;
+    outline: none;
+    resize: none;
+    line-height: 1.5;
+}
+
+.memo-input:focus {
+    border-color: var(--blue);
+    box-shadow: 0 0 0 3px rgba(26, 115, 232, 0.14);
+}
+
+.average-price-dialog {
+    width: min(320px, calc(100vw - 40px));
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: white;
+    box-shadow: 0 18px 48px rgba(32, 33, 36, 0.28);
+    padding: 22px;
+}
+
+.average-price-dialog h2 {
+    margin: 0 0 14px;
+    font-size: 18px;
+    font-weight: 700;
+}
+
+.average-price-input {
+    width: 100%;
+    height: 44px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 0 12px;
+    outline: none;
+    text-align: right;
+    font-size: 17px;
+    font-weight: 700;
+}
+
+.average-price-input:focus {
+    border-color: var(--blue);
+    box-shadow: 0 0 0 3px rgba(26, 115, 232, 0.14);
 }
 
 .auth-body {
