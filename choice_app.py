@@ -5,6 +5,7 @@ import math
 import os
 import time
 import unicodedata
+from ipaddress import ip_address
 from functools import wraps
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
@@ -723,10 +724,30 @@ def fetch_stock_snapshot(ticker: str, requested_fields: set[str]) -> dict[str, s
     return _complete_snapshot(snapshot, requested_fields) if snapshot is not None else _failed_snapshot(requested_fields)
 
 
+def get_page_title() -> str:
+    host = request.host.split(":", 1)[0].lower()
+    if host in {"localhost", "127.0.0.1", "::1"}:
+        return "로컬 choice"
+    if host == "158.247.209.218":
+        return "웹서버 choice"
+
+    try:
+        parsed_host = ip_address(host)
+    except ValueError:
+        return "Choice"
+
+    return "로컬 choice" if parsed_host.is_private else "Choice"
+
+
 @app.route("/")
 @login_required
 def index() -> str:
-    return render_template("index.html", stocks=load_stock_list(), username=session.get("username"))
+    return render_template(
+        "index.html",
+        stocks=load_stock_list(),
+        username=session.get("username"),
+        page_title=get_page_title(),
+    )
 
 
 @app.route("/login", methods=["GET", "POST"])
@@ -761,7 +782,7 @@ def login():
                 session["username"] = username
                 return redirect(next_url)
 
-    return render_template("login.html", error=error, mode=mode, next_url=next_url)
+    return render_template("login.html", error=error, mode=mode, next_url=next_url, page_title=get_page_title())
 
 
 @app.post("/logout")

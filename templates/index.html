@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Choice</title>
+    <title>{{ page_title }}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
@@ -122,7 +122,7 @@
                 id="averagePriceInput"
                 class="average-price-input"
                 type="text"
-                inputmode="numeric"
+                inputmode="decimal"
                 autocomplete="off"
                 aria-label="평단가"
             >
@@ -137,6 +137,6 @@
     <script>
         window.CHOICE_STOCKS = {{ stocks | tojson }};
     </script>
-    <script src="{{ url_for('static', filename='script.js') }}?v=20260501-average-price"></script>
+    <script src="{{ url_for('static', filename='script.js') }}?v=20260501-average-price-decimal"></script>
 </body>
 </html>

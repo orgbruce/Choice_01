@@ -824,17 +824,38 @@ function confirmMemoDialog() {
 }
 
 function normalizeNumberInput(value) {
-    return String(value || "").replace(/[^\d]/g, "");
+    const sanitized = String(value || "")
+        .replace(/,/g, "")
+        .replace(/[^\d.]/g, "");
+    const [integerPart, ...decimalParts] = sanitized.split(".");
+    const integerDigits = integerPart.replace(/[^\d]/g, "");
+    const decimalDigits = decimalParts.join("").replace(/[^\d]/g, "").slice(0, 2);
+
+    return decimalParts.length > 0
+        ? `${integerDigits}.${decimalDigits}`
+        : integerDigits;
 }
 
 function formatAveragePrice(value) {
-    const digits = normalizeNumberInput(value);
-    return digits ? Number(digits).toLocaleString("ko-KR") : "-";
+    const normalized = normalizeNumberInput(value);
+    if (!normalized || normalized === ".") return "-";
+
+    const [integerPart, decimalPart] = normalized.split(".");
+    const formattedInteger = integerPart ? Number(integerPart).toLocaleString("ko-KR") : "0";
+    return decimalPart !== undefined && decimalPart.length > 0
+        ? `${formattedInteger}.${decimalPart}`
+        : formattedInteger;
 }
 
 function formatAveragePriceInput(value) {
-    const digits = normalizeNumberInput(value);
-    return digits ? Number(digits).toLocaleString("ko-KR") : "";
+    const normalized = normalizeNumberInput(value);
+    if (!normalized) return "";
+
+    const [integerPart, decimalPart] = normalized.split(".");
+    const formattedInteger = integerPart ? Number(integerPart).toLocaleString("ko-KR") : "";
+    return normalized.includes(".")
+        ? `${formattedInteger}.${decimalPart || ""}`
+        : formattedInteger;
 }
 
 function getEditingAveragePriceStock() {
