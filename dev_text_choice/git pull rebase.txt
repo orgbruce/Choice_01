@@ -1,0 +1,29 @@
+giggit pull
+
+최신 커밋으로 원격저장소 덮어쓰기,  최신 상태
+
+git fetch origin
+git reset --hard origin/main
+git fetch origin 상태를 가져오는데 파일까지 가져올려면 
+
+git reset --hard origin/main 말고 다른명령어는 없는거야??
+=================================
+
+*원격 저장소 최신 변경사항을 내 작업에 합침
+ggit pull origin main = git fetch origin + git merge origin/main
+git fetch origin + git reset --hard origin/main 와 똑같은거 같음*
+
+내 로컬 커밋을 살리면서 원격 최신 위로 정리
+(로컬 변경사항을 유지하면서 합침)
+git pull --rebase origin main = git fetch origin + git rebase origin/main
+
+=====================
+
+PS G:\내 드라이브\Br\CP\Choice_01> git pull --rebase origin main
+error: cannot pull with rebase: You have unstaged changes.
+error: Please commit or stash them.
+
+즉, 현재 작업 디렉토리에 아직 commit 안 된 변경사항이 있어서
+git pull --rebase가 안전하게 진행을 못 하는 상태입니다.
+
+===================

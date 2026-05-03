@@ -1,6 +1,6 @@
 let STOCKS = Array.isArray(window.CHOICE_STOCKS) ? window.CHOICE_STOCKS : [];
 const STORAGE_KEY = "choice.state.v1";
-const COLUMN_SCHEMA_VERSION = 5;
+const COLUMN_SCHEMA_VERSION = 6;
 
 const COLUMN_DEFS = [
     { key: "name", label: "종목명", className: "stock-name", width: "minmax(140px, 1.4fr)" },
@@ -18,13 +18,13 @@ const COLUMN_DEFS = [
     { key: "roic", label: "ROIC", width: "minmax(74px, 0.85fr)" },
     { key: "operating_income_growth", label: "영업이익증가율", width: "minmax(110px, 1fr)" },
     { key: "market_cap", label: "시가총액", width: "minmax(86px, 0.9fr)" },
-    { key: "performance_1d", label: "1D", width: "minmax(66px, 0.75fr)", valueClass: getChangeClass },
-    { key: "performance_1w", label: "1W", width: "minmax(66px, 0.75fr)", valueClass: getChangeClass },
-    { key: "performance_1m", label: "1M", width: "minmax(66px, 0.75fr)", valueClass: getChangeClass },
-    { key: "performance_ytd", label: "YTD", width: "minmax(66px, 0.75fr)", valueClass: getChangeClass },
-    { key: "performance_1y", label: "1Y", width: "minmax(66px, 0.75fr)", valueClass: getChangeClass },
-    { key: "performance_3y", label: "3Y", width: "minmax(66px, 0.75fr)", valueClass: getChangeClass },
-    { key: "performance_5y", label: "5Y", width: "minmax(66px, 0.75fr)", valueClass: getChangeClass },
+    { key: "performance_1d", label: "1D", className: "performance-cell", width: "minmax(48px, 0.75fr)", valueClass: getChangeClass },
+    { key: "performance_1w", label: "1W", className: "performance-cell", width: "minmax(48px, 0.75fr)", valueClass: getChangeClass },
+    { key: "performance_1m", label: "1M", className: "performance-cell", width: "minmax(48px, 0.75fr)", valueClass: getChangeClass },
+    { key: "performance_ytd", label: "YTD", className: "performance-cell", width: "minmax(48px, 0.75fr)", valueClass: getChangeClass },
+    { key: "performance_1y", label: "1Y", className: "performance-cell", width: "minmax(48px, 0.75fr)", valueClass: getChangeClass },
+    { key: "performance_3y", label: "3Y", className: "performance-cell", width: "minmax(48px, 0.75fr)", valueClass: getChangeClass },
+    { key: "performance_5y", label: "5Y", className: "performance-cell", width: "minmax(48px, 0.75fr)", valueClass: getChangeClass },
 ];
 
 const COLUMN_GROUPS = [
@@ -654,7 +654,9 @@ function updateFixedColumnMaskWidth() {
 document.addEventListener("pointermove", (event) => {
     if (!resizingColumn || resizingColumn.pointerId !== event.pointerId) return;
 
-    const nextWidth = Math.max(72, Math.round(resizingColumn.startWidth + event.clientX - resizingColumn.startX));
+    const isPerformanceColumn = resizingColumn.columnKey?.startsWith("performance_");
+    const minWidth = isPerformanceColumn ? 44 : 72;
+    const nextWidth = Math.max(minWidth, Math.round(resizingColumn.startWidth + event.clientX - resizingColumn.startX));
     state.groupColumnWidths[resizingColumn.groupKey][resizingColumn.columnKey] = nextWidth;
     applyLiveColumnWidths();
 });

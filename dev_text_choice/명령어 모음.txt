@@ -1,0 +1,18 @@
+명령어 모음
+
+웹앱 실행 명령어(로컬 윈도우 용)
+
+python -m flask --app choice_app run --host 0.0.0.0 --port 7777
+
+http://localhost:7777
+==============================
+
+vultr 웹서버용 실햄 명령어(알마 리눅스 용)
+python3 -m flask --app choice_app run --host 0.0.0.0 --port 7777
+
+알마 리눅스나 다른 운영체제에서는 python3를 사용하고
+로컬 윈도우용은 python이 python3를 가리킴
+운영체제마다 다름
+
+
+

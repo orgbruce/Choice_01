@@ -419,6 +419,7 @@ body.layout-hide-navigation .top-horizontal-scroll {
 }
 
 .table-head > span:first-child, .stock-row > .drag-handle { position: sticky; left: 0; z-index: 7; background: inherit; }
+.table-head > span:first-child { z-index: 12; }
 .table-head > span:first-child,
 .table-head > span:last-child {
     display: grid;
@@ -431,6 +432,9 @@ body.layout-hide-navigation .top-horizontal-scroll {
     justify-self: stretch;
 }
 .table-head > .stock-header-cell[data-column-key="name"], .stock-row > .stock-name { position: sticky; left: var(--drag-column-width); z-index: 6; background: inherit; }
+.table-head > .stock-header-cell[data-column-key="name"] {
+    z-index: 11;
+}
 .table-head > span:first-child, .table-head > .stock-header-cell[data-column-key="name"] { background: #fff; }
 .stock-row > .drag-handle, .stock-row > .stock-name { background: #fff; }
 
@@ -524,6 +528,7 @@ body.layout-hide-navigation .top-horizontal-scroll {
 .stock-cell {
     display: flex;
     align-items: center;
+    justify-content: center;
     min-width: 0;
     height: 100%;
     overflow: hidden;
@@ -531,6 +536,16 @@ body.layout-hide-navigation .top-horizontal-scroll {
     border-right: 1px solid transparent;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+.stock-cell.performance-cell {
+    min-height: 58px;
+    overflow: visible;
+    padding: 0 6px;
+    line-height: 1.2;
+    text-align: center;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: break-word;
 }
 .stock-name {
     position: relative;
