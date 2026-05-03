@@ -164,6 +164,32 @@ new tab 1, 2 ~
 - - - -
 
 
+PS C:\gglD_pj\Choice_01> python -m flask --app choice_app run --host 0.0.0.0 --port 7777
+ * Serving Flask app 'choice_app'
+ * Debug mode: off
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:7777
+ * Running on http://192.168.0.8:7777
+Press CTRL+C to quit
+
+choice_app.py 
+실행하면 
+시작 상단에 
+choice_app.py is running ... 
+이라고 출력해줘 
+
+
+
+- - - -
+
+
+- - - -
+
+
+- - - -
+
+
 - - - -
 
 
