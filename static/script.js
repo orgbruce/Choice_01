@@ -85,6 +85,7 @@ const tableHeadEl = document.getElementById("tableHead");
 const stockListEl = document.getElementById("stockList");
 const emptyStateEl = document.getElementById("emptyState");
 const updateButton = document.getElementById("updateButton");
+const layoutToggleButton = document.getElementById("layoutToggleButton");
 const columnGroupTabsEl = document.getElementById("columnGroupTabs");
 const columnSettingsButton = document.getElementById("columnSettingsButton");
 const columnSettingsMenu = document.getElementById("columnSettingsMenu");
@@ -98,6 +99,9 @@ const tabNameInput = document.getElementById("tabNameInput");
 const tabNameError = document.getElementById("tabNameError");
 const cancelTabDialogButton = document.getElementById("cancelTabDialogButton");
 const confirmTabDialogButton = document.getElementById("confirmTabDialogButton");
+const deleteTabDialogOverlay = document.getElementById("deleteTabDialogOverlay");
+const cancelDeleteTabDialogButton = document.getElementById("cancelDeleteTabDialogButton");
+const confirmDeleteTabDialogButton = document.getElementById("confirmDeleteTabDialogButton");
 const memoDialogOverlay = document.getElementById("memoDialogOverlay");
 const memoInput = document.getElementById("memoInput");
 const memoError = document.getElementById("memoError");
@@ -120,12 +124,17 @@ let activeSuggestionIndex = -1;
 let draggedTicker = null;
 let dragHandleArmedTicker = null;
 let draggedColumnKey = null;
+let draggedTabId = null;
 let resizingColumn = null;
 let isUpdating = false;
 let tabDialogMode = "create";
 let editingTabId = null;
+let pendingDeleteTabId = null;
 let currentSuggestions = [];
 let suggestionRequestId = 0;
+let lastSuggestionQuery = "";
+let pendingSuggestionPromise = null;
+let layoutToggleStage = 0;
 
 function createId() {
     return `tab-${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -138,7 +147,7 @@ function normalizeSearchText(value) {
 function createDefaultTab(index = 1) {
     return {
         id: createId(),
-        title: `관심종목 ${index}`,
+        title: index === 1 ? "기본" : `new_${String(index - 1).padStart(2, "0")}`,
         stocks: [],
     };
 }
@@ -264,6 +273,24 @@ function saveState() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 }
 
+function applyLayoutToggleStage() {
+    document.body.classList.toggle("layout-hide-tools", layoutToggleStage === 1 || layoutToggleStage === 2);
+    document.body.classList.toggle("layout-hide-navigation", layoutToggleStage === 2);
+    if (layoutToggleButton) {
+        layoutToggleButton.dataset.stage = String(layoutToggleStage + 1);
+        layoutToggleButton.setAttribute("aria-pressed", String(layoutToggleStage !== 0));
+        layoutToggleButton.title = `레이아웃 토글 ${layoutToggleStage + 1}/3`;
+    }
+    hideColumnSettings();
+    suggestionsEl.classList.remove("open");
+    updateTopHorizontalScroll();
+}
+
+function toggleLayoutStage() {
+    layoutToggleStage = (layoutToggleStage + 1) % 3;
+    applyLayoutToggleStage();
+}
+
 function getVisibleColumns() {
     state.groupVisibleColumns = normalizeGroupVisibleColumns(state.groupVisibleColumns);
     state.groupColumnOrder = normalizeGroupColumnOrder(state.groupColumnOrder);
@@ -329,6 +356,7 @@ function renderTabs() {
         const tabButton = document.createElement("button");
         tabButton.className = `tab${tab.id === state.activeTabId ? " active" : ""}`;
         tabButton.type = "button";
+        tabButton.draggable = true;
         tabButton.dataset.tabId = tab.id;
 
         const title = document.createElement("span");
@@ -343,7 +371,7 @@ function renderTabs() {
 
         close.addEventListener("click", (event) => {
             event.stopPropagation();
-            closeTab(tab.id);
+            openDeleteTabDialog(tab.id);
         });
 
         tabButton.addEventListener("click", () => {
@@ -358,9 +386,56 @@ function renderTabs() {
             showContextMenu(event.clientX, event.clientY);
         });
 
+        tabButton.addEventListener("dragstart", (event) => {
+            if (event.target.closest(".tab-close")) {
+                event.preventDefault();
+                return;
+            }
+
+            draggedTabId = tab.id;
+            tabButton.classList.add("dragging");
+            event.dataTransfer.effectAllowed = "move";
+            event.dataTransfer.setData("text/plain", tab.id);
+        });
+
+        tabButton.addEventListener("dragend", () => {
+            draggedTabId = null;
+            tabsEl.querySelectorAll(".tab").forEach((item) => {
+                item.classList.remove("dragging", "drop-target");
+            });
+            saveState();
+        });
+
+        tabButton.addEventListener("dragover", (event) => {
+            if (!draggedTabId || draggedTabId === tab.id) return;
+            event.preventDefault();
+            event.dataTransfer.dropEffect = "move";
+            tabsEl.querySelectorAll(".tab.drop-target").forEach((item) => {
+                item.classList.remove("drop-target");
+            });
+            tabButton.classList.add("drop-target");
+        });
+
+        tabButton.addEventListener("drop", (event) => {
+            event.preventDefault();
+            moveTab(draggedTabId, tab.id);
+        });
+
         tabButton.append(title, close);
         tabsEl.appendChild(tabButton);
     });
+}
+
+function moveTab(sourceTabId, targetTabId) {
+    if (!sourceTabId || !targetTabId || sourceTabId === targetTabId) return;
+
+    const sourceIndex = state.tabs.findIndex((tab) => tab.id === sourceTabId);
+    const targetIndex = state.tabs.findIndex((tab) => tab.id === targetTabId);
+    if (sourceIndex < 0 || targetIndex < 0) return;
+
+    const [moved] = state.tabs.splice(sourceIndex, 1);
+    state.tabs.splice(targetIndex, 0, moved);
+    render();
 }
 
 function renderColumnSettings() {
@@ -628,11 +703,14 @@ function renderStocks() {
             const valueClass = typeof column.valueClass === "function" ? column.valueClass(stock[column.key]) : "";
             cell.className = ["stock-cell", column.className || "", valueClass].filter(Boolean).join(" ");
             cell.dataset.label = column.label;
-            cell.textContent = column.key === "average_price"
-                ? formatAveragePrice(stock.average_price)
-                : stock[column.key] || "-";
 
             if (column.key === "name") {
+                const primary = document.createElement("span");
+                primary.className = "stock-primary";
+                primary.textContent = stock.name || "-";
+
+                cell.append(primary);
+
                 const memo = String(stock.memo || "").trim();
                 cell.dataset.ticker = stock.ticker;
                 cell.classList.toggle("has-memo", Boolean(memo));
@@ -643,10 +721,10 @@ function renderStocks() {
                     memoMark.textContent = "★";
                     memoMark.setAttribute("aria-label", "메모 있음");
                     cell.prepend(memoMark);
-                    cell.addEventListener("mouseenter", (event) => showMemoTooltip(memo, event.clientX, event.clientY));
-                    cell.addEventListener("mousemove", (event) => moveMemoTooltip(event.clientX, event.clientY));
-                    cell.addEventListener("mouseleave", hideMemoTooltip);
                 }
+                cell.addEventListener("mouseenter", (event) => showMemoTooltip(memo, stock.market, event.clientX, event.clientY));
+                cell.addEventListener("mousemove", (event) => moveMemoTooltip(event.clientX, event.clientY));
+                cell.addEventListener("mouseleave", hideMemoTooltip);
 
                 cell.addEventListener("contextmenu", (event) => {
                     event.preventDefault();
@@ -654,6 +732,10 @@ function renderStocks() {
                     contextStockTicker = stock.ticker;
                     showStockContextMenu(event.clientX, event.clientY);
                 });
+            } else {
+                cell.textContent = column.key === "average_price"
+                    ? formatAveragePrice(stock.average_price)
+                    : stock[column.key] || "-";
             }
 
             if (column.key === "average_price") {
@@ -728,8 +810,21 @@ function getChangeClass(change) {
     return "";
 }
 
-function showMemoTooltip(memo, x, y) {
-    memoTooltipEl.textContent = memo;
+function showMemoTooltip(memo, market, x, y) {
+    memoTooltipEl.innerHTML = "";
+    if (!market && !memo) return;
+    if (market) {
+        const marketEl = document.createElement("span");
+        marketEl.className = "memo-tooltip-market";
+        marketEl.textContent = market;
+        memoTooltipEl.appendChild(marketEl);
+    }
+    if (memo) {
+        const memoEl = document.createElement("span");
+        memoEl.className = "memo-tooltip-text";
+        memoEl.textContent = memo;
+        memoTooltipEl.appendChild(memoEl);
+    }
     memoTooltipEl.classList.add("open");
     moveMemoTooltip(x, y);
 }
@@ -753,6 +848,15 @@ function addTab() {
     openTabDialog("create");
 }
 
+function getNextTabTitle() {
+    let index = 1;
+    const existingTitles = new Set(state.tabs.map((tab) => normalizeSearchText(tab.title)));
+    while (existingTitles.has(normalizeSearchText(`new tab ${index}`))) {
+        index += 1;
+    }
+    return `new tab ${index}`;
+}
+
 function createTabWithTitle(title) {
     const tab = createDefaultTab(state.tabs.length + 1);
     tab.title = title;
@@ -773,6 +877,31 @@ function closeTab(tabId) {
     }
 
     render();
+}
+
+function openDeleteTabDialog(tabId) {
+    if (state.tabs.length === 1) return;
+    pendingDeleteTabId = tabId;
+    deleteTabDialogOverlay.classList.add("open");
+    deleteTabDialogOverlay.setAttribute("aria-hidden", "false");
+    hideContextMenu();
+    hideColumnSettings();
+    suggestionsEl.classList.remove("open");
+    window.setTimeout(() => {
+        confirmDeleteTabDialogButton.focus();
+    }, 0);
+}
+
+function closeDeleteTabDialog() {
+    deleteTabDialogOverlay.classList.remove("open");
+    deleteTabDialogOverlay.setAttribute("aria-hidden", "true");
+    pendingDeleteTabId = null;
+}
+
+function confirmDeleteTabDialog() {
+    const tabId = pendingDeleteTabId;
+    closeDeleteTabDialog();
+    if (tabId) closeTab(tabId);
 }
 
 function renameTab() {
@@ -904,7 +1033,7 @@ function openTabDialog(mode, tab = null) {
     editingTabId = tab ? tab.id : null;
     tabDialogTitle.textContent = mode === "create" ? "새 탭 제목" : "탭 이름 변경";
     confirmTabDialogButton.textContent = mode === "create" ? "생성" : "변경";
-    tabNameInput.value = tab ? tab.title : "";
+    tabNameInput.value = tab ? tab.title : getNextTabTitle();
     tabNameError.textContent = "";
     tabDialogOverlay.classList.add("open");
     tabDialogOverlay.setAttribute("aria-hidden", "false");
@@ -1069,6 +1198,8 @@ function renderSuggestionList(matches) {
     if (activeItem) {
         activeItem.scrollIntoView({ block: "nearest" });
     }
+
+    return matches;
 }
 
 async function renderSuggestions() {
@@ -1076,28 +1207,49 @@ async function renderSuggestions() {
     const normalized = normalizeSearchText(query);
     const requestId = suggestionRequestId + 1;
     suggestionRequestId = requestId;
+    const isNewQuery = normalized !== lastSuggestionQuery;
+    lastSuggestionQuery = normalized;
+    if (isNewQuery) {
+        activeSuggestionIndex = -1;
+    }
 
     if (!normalized) {
-        renderSuggestionList([]);
-        return;
+        return renderSuggestionList([]);
     }
 
     suggestionStatusEl.textContent = "검색 중...";
 
-    try {
-        const matches = await fetchMatches(query);
-        if (requestId !== suggestionRequestId) return;
-        renderSuggestionList(matches);
-    } catch (error) {
-        console.warn("종목 검색 실패", error);
-        if (requestId !== suggestionRequestId) return;
-        renderSuggestionList(findMatches(query));
+    const promise = fetchMatches(query)
+        .then((matches) => {
+            if (requestId !== suggestionRequestId) return currentSuggestions;
+            return renderSuggestionList(matches);
+        })
+        .catch((error) => {
+            console.warn("종목 검색 실패", error);
+            if (requestId !== suggestionRequestId) return currentSuggestions;
+            return renderSuggestionList(findMatches(query));
+        });
+
+    pendingSuggestionPromise = promise;
+    const result = await promise;
+    if (pendingSuggestionPromise === promise) {
+        pendingSuggestionPromise = null;
     }
+    return result;
+}
+
+async function ensureSuggestionsReady() {
+    if (pendingSuggestionPromise) {
+        await pendingSuggestionPromise;
+    } else if (currentSuggestions.length === 0 && stockInput.value.trim()) {
+        await renderSuggestions();
+    }
+    return currentSuggestions;
 }
 
 function handleStockInputChange() {
     activeSuggestionIndex = -1;
-    renderSuggestions();
+    pendingSuggestionPromise = renderSuggestions();
 }
 
 function handleStockInputKeyup(event) {
@@ -1204,12 +1356,15 @@ addTabButton.addEventListener("click", addTab);
 renameTabButton.addEventListener("click", renameTab);
 writeMemoButton.addEventListener("click", openMemoDialog);
 updateButton.addEventListener("click", updateActiveStocks);
+layoutToggleButton?.addEventListener("click", toggleLayoutStage);
 columnSettingsButton.addEventListener("click", toggleColumnSettings);
 stockTableScrollEl.addEventListener("scroll", () => syncHorizontalScroll(stockTableScrollEl));
 topHorizontalScrollEl.addEventListener("scroll", () => syncHorizontalScroll(topHorizontalScrollEl));
 bottomHorizontalScrollEl.addEventListener("scroll", () => syncHorizontalScroll(bottomHorizontalScrollEl));
 cancelTabDialogButton.addEventListener("click", closeTabDialog);
 confirmTabDialogButton.addEventListener("click", confirmTabDialog);
+cancelDeleteTabDialogButton.addEventListener("click", closeDeleteTabDialog);
+confirmDeleteTabDialogButton.addEventListener("click", confirmDeleteTabDialog);
 cancelMemoDialogButton.addEventListener("click", closeMemoDialog);
 confirmMemoDialogButton.addEventListener("click", confirmMemoDialog);
 cancelAveragePriceDialogButton.addEventListener("click", closeAveragePriceDialog);
@@ -1217,6 +1372,10 @@ confirmAveragePriceDialogButton.addEventListener("click", confirmAveragePriceDia
 
 tabDialogOverlay.addEventListener("click", (event) => {
     if (event.target === tabDialogOverlay) closeTabDialog();
+});
+
+deleteTabDialogOverlay.addEventListener("click", (event) => {
+    if (event.target === deleteTabDialogOverlay) closeDeleteTabDialog();
 });
 
 memoDialogOverlay.addEventListener("click", (event) => {
@@ -1240,6 +1399,18 @@ tabNameInput.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
         event.preventDefault();
         closeTabDialog();
+    }
+});
+
+deleteTabDialogOverlay.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+        event.preventDefault();
+        confirmDeleteTabDialog();
+    }
+
+    if (event.key === "Escape") {
+        event.preventDefault();
+        closeDeleteTabDialog();
     }
 });
 
@@ -1289,32 +1460,34 @@ stockInput.addEventListener("change", handleStockInputChange);
 stockInput.addEventListener("compositionend", handleStockInputChange);
 
 stockInput.addEventListener("focus", () => {
-    if (stockInput.value.trim()) renderSuggestions();
+    if (stockInput.value.trim()) pendingSuggestionPromise = renderSuggestions();
 });
 
-stockInput.addEventListener("keydown", (event) => {
+stockInput.addEventListener("keydown", async (event) => {
     if (event.key === "ArrowDown") {
         event.preventDefault();
-        if (currentSuggestions.length === 0) {
-            renderSuggestions();
-            return;
-        }
-        activeSuggestionIndex = Math.min(activeSuggestionIndex + 1, currentSuggestions.length - 1);
+        await ensureSuggestionsReady();
+        if (currentSuggestions.length === 0) return;
+        activeSuggestionIndex = activeSuggestionIndex < 0
+            ? 0
+            : Math.min(activeSuggestionIndex + 1, currentSuggestions.length - 1);
         renderSuggestionList(currentSuggestions);
     }
 
     if (event.key === "ArrowUp") {
         event.preventDefault();
-        if (currentSuggestions.length === 0) {
-            renderSuggestions();
-            return;
-        }
-        activeSuggestionIndex = Math.max(activeSuggestionIndex - 1, 0);
+        await ensureSuggestionsReady();
+        if (currentSuggestions.length === 0) return;
+        activeSuggestionIndex = activeSuggestionIndex < 0
+            ? 0
+            : Math.max(activeSuggestionIndex - 1, 0);
         renderSuggestionList(currentSuggestions);
     }
 
     if (event.key === "Enter") {
         event.preventDefault();
+        await ensureSuggestionsReady();
+        if (currentSuggestions.length === 0) return;
         const selected = currentSuggestions[activeSuggestionIndex >= 0 ? activeSuggestionIndex : 0];
         if (selected) addStock(selected);
     }
@@ -1357,4 +1530,5 @@ window.addEventListener("resize", () => {
 });
 
 refreshStockCatalog();
+applyLayoutToggleStage();
 render();

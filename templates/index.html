@@ -8,62 +8,73 @@
 </head>
 <body>
     <div class="app-shell">
-        <header class="browser-top">
-            <div class="window-title">
-                <span class="brand-mark">C</span>
-                <span>Choice</span>
-                <form class="logout-form" method="post" action="{{ url_for('logout') }}">
-                    <span class="user-name">{{ username }}</span>
-                    <button class="logout-button" type="submit">로그아웃</button>
-                </form>
+        <header class="app-header">
+            <div>
+                <h1 class="brand-title">Choice</h1>
+                <p class="user-line">{{ username }} (사용자)</p>
             </div>
-
-            <div class="tab-strip" aria-label="관심종목 탭">
-                <div id="tabs" class="tabs"></div>
-                <button id="addTabButton" class="new-tab-button" type="button" title="새 탭">+</button>
-            </div>
+            <form class="logout-form" method="post" action="{{ url_for('logout') }}">
+                <button class="logout-button" type="submit">로그아웃</button>
+            </form>
         </header>
 
         <main class="workspace">
-            <section class="toolbar" aria-label="종목 추가 및 업데이트">
-                <div class="search-wrap">
-                    <input
-                        id="stockInput"
-                        class="stock-input"
-                        type="text"
-                        autocomplete="off"
-                        placeholder="종목명 또는 티커 검색"
-                        aria-label="종목 검색"
-                    >
-                    <div id="suggestions" class="suggestions" role="listbox"></div>
-                    <div id="suggestionStatus" class="suggestion-status" aria-live="polite"></div>
-                </div>
-                <button id="updateButton" class="update-button" type="button">업데이트</button>
+            <section class="page-intro" aria-labelledby="watchlistTitle">
+                <h2 id="watchlistTitle">관심종목</h2>
+                <span class="update-status">업데이트 완료 오전 11:00:47</span>
+                <button id="layoutToggleButton" class="layout-toggle-button" type="button" aria-label="레이아웃 토글" title="레이아웃 토글">t</button>
             </section>
 
-            <section class="stock-panel">
-                <div class="table-tools">
-                    <nav id="columnGroupTabs" class="column-group-tabs" aria-label="컬럼 그룹"></nav>
-                    <div class="column-settings">
-                        <button id="columnSettingsButton" class="settings-button" type="button" aria-expanded="false" aria-controls="columnSettingsMenu">
-                            설정
-                        </button>
-                        <div id="columnSettingsMenu" class="column-settings-menu" aria-label="테이블 컬럼 설정"></div>
-                    </div>
+            <section class="watchlist-card" aria-label="관심종목">
+                <div class="tab-strip" aria-label="관심종목 탭">
+                    <div id="tabs" class="tabs"></div>
+                    <button id="addTabButton" class="new-tab-button" type="button" title="탭 추가">+</button>
                 </div>
-                <div id="topHorizontalScroll" class="top-horizontal-scroll" aria-hidden="true">
-                    <div id="topHorizontalScrollInner" class="top-horizontal-scroll-inner"></div>
-                </div>
-                <div id="stockTableScroll" class="stock-table-scroll">
-                    <div id="fixedColumnCurtain" class="fixed-column-curtain" aria-hidden="true"></div>
-                    <div id="tableHead" class="table-head"></div>
-                    <div id="stockList" class="stock-list" aria-live="polite"></div>
-                    <div id="emptyState" class="empty-state">
-                        관심종목을 검색해서 현재 탭에 추가하세요.
-                    </div>
-                </div>
-                <div id="bottomHorizontalScroll" class="bottom-horizontal-scroll" aria-hidden="true">
-                    <div id="bottomHorizontalScrollInner" class="bottom-horizontal-scroll-inner"></div>
+
+                <div class="panel-body">
+                    <section class="toolbar" aria-label="종목 검색 및 업데이트">
+                        <div class="search-wrap">
+                            <input
+                                id="stockInput"
+                                class="stock-input"
+                                type="text"
+                                autocomplete="off"
+                                placeholder="종목명 또는 티커 검색"
+                                aria-label="종목 검색"
+                            >
+                            <div id="suggestions" class="suggestions" role="listbox"></div>
+                            <div id="suggestionStatus" class="suggestion-status" aria-live="polite"></div>
+                        </div>
+                        <div class="update-area">
+                            <button id="updateButton" class="update-button" type="button">업데이트</button>
+                        </div>
+                    </section>
+
+                    <section class="stock-panel">
+                        <div class="table-tools">
+                            <nav id="columnGroupTabs" class="column-group-tabs" aria-label="컬럼 그룹"></nav>
+                            <div class="column-settings">
+                                <button id="columnSettingsButton" class="settings-button" type="button" aria-expanded="false" aria-controls="columnSettingsMenu">
+                                    설정
+                                </button>
+                                <div id="columnSettingsMenu" class="column-settings-menu" aria-label="테이블 컬럼 설정"></div>
+                            </div>
+                        </div>
+                        <div id="topHorizontalScroll" class="top-horizontal-scroll" aria-hidden="true">
+                            <div id="topHorizontalScrollInner" class="top-horizontal-scroll-inner"></div>
+                        </div>
+                        <div id="stockTableScroll" class="stock-table-scroll">
+                            <div id="fixedColumnCurtain" class="fixed-column-curtain" aria-hidden="true"></div>
+                            <div id="tableHead" class="table-head"></div>
+                            <div id="stockList" class="stock-list" aria-live="polite"></div>
+                            <div id="emptyState" class="empty-state">
+                                관심종목을 검색해서 현재 탭에 추가하세요.
+                            </div>
+                        </div>
+                        <div id="bottomHorizontalScroll" class="bottom-horizontal-scroll" aria-hidden="true">
+                            <div id="bottomHorizontalScrollInner" class="bottom-horizontal-scroll-inner"></div>
+                        </div>
+                    </section>
                 </div>
             </section>
         </main>
@@ -74,7 +85,7 @@
     </nav>
 
     <nav id="stockContextMenu" class="context-menu" aria-label="종목 메뉴">
-        <button id="writeMemoButton" type="button">메모 삽입</button>
+        <button id="writeMemoButton" type="button">메모 작성</button>
     </nav>
 
     <div id="tabDialogOverlay" class="dialog-overlay" aria-hidden="true">
@@ -86,13 +97,23 @@
                 type="text"
                 maxlength="32"
                 autocomplete="off"
-                placeholder="예: 장기 보유"
+                placeholder="새 탭 이름"
                 aria-label="탭 제목"
             >
             <p id="tabNameError" class="dialog-error" aria-live="polite"></p>
             <div class="dialog-actions">
                 <button id="cancelTabDialogButton" class="dialog-button ghost" type="button">취소</button>
                 <button id="confirmTabDialogButton" class="dialog-button primary" type="button">확인</button>
+            </div>
+        </section>
+    </div>
+
+    <div id="deleteTabDialogOverlay" class="dialog-overlay" aria-hidden="true">
+        <section class="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="deleteTabDialogTitle">
+            <h2 id="deleteTabDialogTitle">삭제할까요?</h2>
+            <div class="dialog-actions">
+                <button id="cancelDeleteTabDialogButton" class="dialog-button ghost" type="button">취소</button>
+                <button id="confirmDeleteTabDialogButton" class="dialog-button primary" type="button">확인</button>
             </div>
         </section>
     </div>
@@ -137,6 +158,6 @@
     <script>
         window.CHOICE_STOCKS = {{ stocks | tojson }};
     </script>
-    <script src="{{ url_for('static', filename='script.js') }}?v=20260501-average-price-decimal"></script>
+    <script src="{{ url_for('static', filename='script.js') }}?v=20260503-choice-design"></script>
 </body>
 </html>

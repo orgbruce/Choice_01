@@ -17,6 +17,8 @@ from urllib.request import Request, urlopen
 from flask import Flask, jsonify, redirect, render_template, request, session, url_for
 from werkzeug.security import check_password_hash, generate_password_hash
 
+print("choice_app.py is running ...", flush=True)
+
 app = Flask(__name__)
 app.secret_key = os.environ.get("CHOICE_SECRET_KEY", "choice-dev-secret-change-me")
 app.config["TEMPLATES_AUTO_RELOAD"] = True
@@ -727,16 +729,16 @@ def fetch_stock_snapshot(ticker: str, requested_fields: set[str]) -> dict[str, s
 def get_page_title() -> str:
     host = request.host.split(":", 1)[0].lower()
     if host in {"localhost", "127.0.0.1", "::1"}:
-        return "로컬 choice"
+        return "로컬 Choice"
     if host == "158.247.209.218":
-        return "웹서버 choice"
+        return "웹서버 Choice"
 
     try:
         parsed_host = ip_address(host)
     except ValueError:
         return "Choice"
 
-    return "로컬 choice" if parsed_host.is_private else "Choice"
+    return "로컬 Choice" if parsed_host.is_private else "Choice"
 
 
 @app.route("/")

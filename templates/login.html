@@ -10,11 +10,8 @@
     <main class="auth-shell">
         <section class="auth-panel" aria-labelledby="authTitle">
             <div class="auth-brand">
-                <span class="brand-mark">C</span>
-                <div>
-                    <h1 id="authTitle">Choice</h1>
-                    <p>관심 종목을 내 계정으로 관리하세요.</p>
-                </div>
+                <h1 id="authTitle">Choice</h1>
+                <p>관심종목을 계정별로 관리하세요.</p>
             </div>
 
             <form class="auth-form" method="post" action="{{ url_for('login', next=next_url) }}">
