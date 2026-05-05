@@ -7,7 +7,6 @@ import time
 import unicodedata
 from ipaddress import ip_address
 from functools import wraps
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable
@@ -17,14 +16,31 @@ from urllib.request import Request, urlopen
 from flask import Flask, jsonify, redirect, render_template, request, session, url_for
 from werkzeug.security import check_password_hash, generate_password_hash
 
+from server.api import register_api_routes
+
 print("choice_app.py is running ...", flush=True)
 
-app = Flask(__name__)
+BASE_DIR = Path(__file__).resolve().parent
+PUBLIC_DIR = BASE_DIR / "public"
+AUTH_DIR = BASE_DIR / "auth"
+USER_DATA_ROOT = BASE_DIR / "data"
+
+app = Flask(
+    __name__,
+    static_folder=str(PUBLIC_DIR),
+    static_url_path="/public",
+    template_folder=str(PUBLIC_DIR),
+)
 app.secret_key = os.environ.get("CHOICE_SECRET_KEY", "choice-dev-secret-change-me")
 app.config["TEMPLATES_AUTO_RELOAD"] = True
 MAX_UPDATE_WORKERS = 8
-STOCK_LIST_PATH = Path(__file__).with_name("stock_list.json")
-USER_STORE_PATH = Path(__file__).with_name("users.json")
+STOCK_LIST_PATH = PUBLIC_DIR / "stock_list.json"
+USER_STORE_PATH = AUTH_DIR / "users.json"
+AVERAGE_PRICES_FILE = "average_prices.json"
+MEMOS_FILE = "memos.json"
+LAYOUT_STATE_FILE = "layout_state.json"
+MYSTOCK_LIST_FILE = "mystock_list.json"
+PERSONAL_STOCK_FIELDS = {"average_price", "memo"}
 DEFAULT_STOCK_FIELDS = {
     "price": "-",
     "change_amount": "-",
@@ -75,8 +91,159 @@ def load_users() -> dict[str, dict[str, str]]:
 
 
 def save_users(users: dict[str, dict[str, str]]) -> None:
+    AUTH_DIR.mkdir(parents=True, exist_ok=True)
     with USER_STORE_PATH.open("w", encoding="utf-8") as file:
         json.dump(users, file, ensure_ascii=False, indent=2)
+
+
+def _read_json_file(path: Path, default: Any) -> Any:
+    try:
+        with path.open(encoding="utf-8") as file:
+            return json.load(file)
+    except (OSError, json.JSONDecodeError):
+        return default
+
+
+def _write_json_file(path: Path, payload: Any) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8") as file:
+        json.dump(payload, file, ensure_ascii=False, indent=2)
+
+
+def _safe_user_id(username: str) -> str:
+    safe = "".join(
+        char if char.isalnum() or char in {"-", "_", "."} else "_"
+        for char in username.strip()
+    ).strip("._")
+    return safe or "user"
+
+
+def get_user_data_dir(username: str) -> Path:
+    return USER_DATA_ROOT / _safe_user_id(username)
+
+
+def ensure_user_data_store(username: str) -> Path:
+    user_dir = get_user_data_dir(username)
+    defaults = {
+        AVERAGE_PRICES_FILE: {},
+        MEMOS_FILE: {},
+        LAYOUT_STATE_FILE: {},
+        MYSTOCK_LIST_FILE: {"tabs": []},
+    }
+
+    for filename, default in defaults.items():
+        path = user_dir / filename
+        if not path.exists():
+            _write_json_file(path, default)
+
+    return user_dir
+
+
+def load_user_state(username: str | None) -> dict[str, Any] | None:
+    if not username:
+        return None
+
+    user_dir = ensure_user_data_store(username)
+    watchlist = _read_json_file(user_dir / MYSTOCK_LIST_FILE, {"tabs": []})
+    layout_state = _read_json_file(user_dir / LAYOUT_STATE_FILE, {})
+    average_prices = _read_json_file(user_dir / AVERAGE_PRICES_FILE, {})
+    memos = _read_json_file(user_dir / MEMOS_FILE, {})
+
+    if not isinstance(watchlist, dict) or not isinstance(watchlist.get("tabs"), list):
+        return None
+
+    if not isinstance(layout_state, dict):
+        layout_state = {}
+    if not isinstance(average_prices, dict):
+        average_prices = {}
+    if not isinstance(memos, dict):
+        memos = {}
+
+    tabs = []
+    for index, tab in enumerate(watchlist.get("tabs", []), start=1):
+        if not isinstance(tab, dict):
+            continue
+
+        stocks = []
+        for stock in tab.get("stocks", []):
+            if not isinstance(stock, dict):
+                continue
+
+            ticker = str(stock.get("ticker") or "").strip()
+            if not ticker:
+                continue
+
+            stocks.append({
+                **stock,
+                "average_price": average_prices.get(ticker, ""),
+                "memo": memos.get(ticker, ""),
+            })
+
+        tabs.append({
+            "id": tab.get("id") or f"tab-{index}",
+            "title": tab.get("title") or f"Tab {index}",
+            "stocks": stocks,
+        })
+
+    if not tabs:
+        return None
+
+    return {
+        **layout_state,
+        "tabs": tabs,
+    }
+
+
+def save_user_state(username: str, state_payload: dict[str, Any]) -> None:
+    user_dir = ensure_user_data_store(username)
+    tabs_payload = state_payload.get("tabs", [])
+    tabs = tabs_payload if isinstance(tabs_payload, list) else []
+    average_prices: dict[str, Any] = {}
+    memos: dict[str, Any] = {}
+    watchlist_tabs: list[dict[str, Any]] = []
+
+    for index, tab in enumerate(tabs, start=1):
+        if not isinstance(tab, dict):
+            continue
+
+        stocks = []
+        for stock in tab.get("stocks", []):
+            if not isinstance(stock, dict):
+                continue
+
+            ticker = str(stock.get("ticker") or "").strip()
+            if not ticker:
+                continue
+
+            average_price = stock.get("average_price", "")
+            memo = stock.get("memo", "")
+            if average_price not in ("", None):
+                average_prices[ticker] = average_price
+            if memo not in ("", None):
+                memos[ticker] = memo
+
+            stocks.append({
+                key: value
+                for key, value in stock.items()
+                if key not in PERSONAL_STOCK_FIELDS
+            })
+
+        watchlist_tabs.append({
+            "id": tab.get("id") or f"tab-{index}",
+            "title": tab.get("title") or f"Tab {index}",
+            "stocks": stocks,
+        })
+
+    layout_state = {
+        key: value
+        for key, value in state_payload.items()
+        if key != "tabs"
+    }
+
+    _write_json_file(user_dir / AVERAGE_PRICES_FILE, average_prices)
+    _write_json_file(user_dir / MEMOS_FILE, memos)
+    _write_json_file(user_dir / LAYOUT_STATE_FILE, layout_state)
+    _write_json_file(user_dir / MYSTOCK_LIST_FILE, {"tabs": watchlist_tabs})
 
 
 def login_required(view: Callable[..., Any]) -> Callable[..., Any]:
@@ -744,10 +911,12 @@ def get_page_title() -> str:
 @app.route("/")
 @login_required
 def index() -> str:
+    username = session.get("username")
     return render_template(
         "index.html",
         stocks=load_stock_list(),
-        username=session.get("username"),
+        user_state=load_user_state(username),
+        username=username,
         page_title=get_page_title(),
     )
 
@@ -774,6 +943,7 @@ def login():
             else:
                 users[username] = {"password_hash": generate_password_hash(password)}
                 save_users(users)
+                ensure_user_data_store(username)
                 session["username"] = username
                 return redirect(next_url)
         else:
@@ -781,6 +951,7 @@ def login():
             if not user or not check_password_hash(user.get("password_hash", ""), password):
                 error = "아이디 또는 비밀번호가 올바르지 않습니다."
             else:
+                ensure_user_data_store(username)
                 session["username"] = username
                 return redirect(next_url)
 
@@ -793,55 +964,18 @@ def logout():
     return redirect(url_for("login"))
 
 
-@app.get("/api/stocks")
-@login_required
-def list_stocks():
-    return jsonify({"stocks": load_stock_list()})
-
-
-@app.get("/api/stocks/search")
-@login_required
-def search_stock_list():
-    return jsonify({"stocks": search_stocks(request.args.get("q", ""))})
-
-
-@app.post("/api/stocks/update")
-@login_required
-def update_stocks():
-    data = request.get_json(silent=True) or {}
-    tickers = data.get("tickers", [])
-    requested_fields = _clean_requested_fields(data.get("fields"))
-
-    if not isinstance(tickers, list):
-        return jsonify({"error": "tickers must be a list"}), 400
-
-    clean_tickers = []
-    seen_tickers = set()
-    for ticker in tickers:
-        if not isinstance(ticker, str):
-            continue
-
-        clean_ticker = ticker.strip()
-        if clean_ticker and clean_ticker not in seen_tickers:
-            clean_tickers.append(clean_ticker)
-            seen_tickers.add(clean_ticker)
-
-    results: dict[str, dict[str, str]] = {}
-    if clean_tickers and requested_fields:
-        worker_count = min(MAX_UPDATE_WORKERS, len(clean_tickers))
-        with ThreadPoolExecutor(max_workers=worker_count) as executor:
-            futures = {
-                executor.submit(fetch_stock_snapshot, ticker, requested_fields): ticker
-                for ticker in clean_tickers
-            }
-            for future in as_completed(futures):
-                ticker = futures[future]
-                try:
-                    results[ticker] = future.result()
-                except Exception:
-                    results[ticker] = _failed_snapshot(requested_fields)
-
-    return jsonify({"stocks": results})
+register_api_routes(
+    app,
+    login_required=login_required,
+    load_stock_list=load_stock_list,
+    search_stocks=search_stocks,
+    load_user_state=load_user_state,
+    save_user_state=save_user_state,
+    clean_requested_fields=_clean_requested_fields,
+    fetch_stock_snapshot=fetch_stock_snapshot,
+    failed_snapshot=_failed_snapshot,
+    max_update_workers=MAX_UPDATE_WORKERS,
+)
 
 
 if __name__ == "__main__":

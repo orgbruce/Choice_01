@@ -135,6 +135,7 @@ let suggestionRequestId = 0;
 let lastSuggestionQuery = "";
 let pendingSuggestionPromise = null;
 let layoutToggleStage = 0;
+let saveStateTimer = null;
 
 function createId() {
     return `tab-${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -233,6 +234,25 @@ function getColumnByKey(key) {
 }
 
 function loadState() {
+    if (window.CHOICE_USER_STATE && Array.isArray(window.CHOICE_USER_STATE.tabs) && window.CHOICE_USER_STATE.tabs.length > 0) {
+        const saved = window.CHOICE_USER_STATE;
+        const shouldResetColumns = saved.columnSchemaVersion !== COLUMN_SCHEMA_VERSION;
+        return {
+            tabs: saved.tabs.map((tab, index) => ({
+                id: tab.id || createId(),
+                title: tab.title || `관심종목 ${index + 1}`,
+                stocks: Array.isArray(tab.stocks) ? tab.stocks : [],
+            })),
+            activeTabId: saved.activeTabId || saved.tabs[0].id,
+            visibleColumns: shouldResetColumns ? [...DEFAULT_VISIBLE_COLUMNS] : normalizeVisibleColumns(saved.visibleColumns),
+            activeColumnGroup: normalizeColumnGroup(saved.activeColumnGroup),
+            groupVisibleColumns: shouldResetColumns ? createDefaultGroupVisibleColumns() : normalizeGroupVisibleColumns(saved.groupVisibleColumns),
+            groupColumnOrder: shouldResetColumns ? createDefaultGroupColumnOrder() : normalizeGroupColumnOrder(saved.groupColumnOrder),
+            groupColumnWidths: shouldResetColumns ? createDefaultGroupColumnWidths() : normalizeGroupColumnWidths(saved.groupColumnWidths),
+            columnSchemaVersion: COLUMN_SCHEMA_VERSION,
+        };
+    }
+
     try {
         const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
         if (saved && Array.isArray(saved.tabs) && saved.tabs.length > 0) {
@@ -271,6 +291,20 @@ function loadState() {
 
 function saveState() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    scheduleServerStateSave();
+}
+
+function scheduleServerStateSave() {
+    window.clearTimeout(saveStateTimer);
+    saveStateTimer = window.setTimeout(() => {
+        fetch("/api/user-data", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ state }),
+        }).catch((error) => {
+            console.warn("Failed to save user state", error);
+        });
+    }, 400);
 }
 
 function applyLayoutToggleStage() {

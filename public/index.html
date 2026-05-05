@@ -157,6 +157,7 @@
 
     <script>
         window.CHOICE_STOCKS = {{ stocks | tojson }};
+        window.CHOICE_USER_STATE = {{ user_state | tojson }};
     </script>
     <script src="{{ url_for('static', filename='script.js') }}?v=20260503-choice-design"></script>
 </body>
