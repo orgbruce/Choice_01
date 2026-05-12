@@ -1,1 +1,96 @@
-{}
+{
+  "activeTabId": "tab-1778597359100-95d2f7ea858d4",
+  "visibleColumns": [
+    "name",
+    "ticker",
+    "price",
+    "average_price",
+    "change_amount",
+    "change",
+    "volume",
+    "close",
+    "open",
+    "high",
+    "low",
+    "per",
+    "roic",
+    "operating_income_growth",
+    "market_cap",
+    "performance_1d",
+    "performance_1w",
+    "performance_1m",
+    "performance_ytd",
+    "performance_1y",
+    "performance_3y",
+    "performance_5y"
+  ],
+  "activeColumnGroup": "price",
+  "groupVisibleColumns": {
+    "price": [
+      "name",
+      "ticker",
+      "price",
+      "average_price",
+      "change",
+      "volume",
+      "close",
+      "open",
+      "high",
+      "low"
+    ],
+    "fundamental": [
+      "name",
+      "per",
+      "roic",
+      "operating_income_growth",
+      "market_cap"
+    ],
+    "performance": [
+      "name",
+      "performance_1d",
+      "performance_1w",
+      "performance_1m",
+      "performance_1y",
+      "performance_ytd",
+      "performance_3y",
+      "performance_5y"
+    ]
+  },
+  "groupColumnOrder": {
+    "price": [
+      "name",
+      "ticker",
+      "price",
+      "average_price",
+      "change",
+      "volume",
+      "close",
+      "open",
+      "high",
+      "low"
+    ],
+    "fundamental": [
+      "name",
+      "per",
+      "roic",
+      "operating_income_growth",
+      "market_cap"
+    ],
+    "performance": [
+      "name",
+      "performance_1d",
+      "performance_1w",
+      "performance_1m",
+      "performance_1y",
+      "performance_ytd",
+      "performance_3y",
+      "performance_5y"
+    ]
+  },
+  "groupColumnWidths": {
+    "price": {},
+    "fundamental": {},
+    "performance": {}
+  },
+  "columnSchemaVersion": 6
+}

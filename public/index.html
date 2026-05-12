@@ -23,13 +23,18 @@
                 <h2 id="watchlistTitle">관심종목</h2>
                 <span class="update-status">업데이트 완료 오전 11:00:47</span>
                 <button id="layoutToggleButton" class="layout-toggle-button" type="button" aria-label="레이아웃 토글" title="레이아웃 토글">t</button>
+                <button id="addTabButton" class="new-tab-button" type="button" aria-label="탭 추가" title="탭 추가">+</button>
+                <button id="editTabButton" class="edit-tab-button" type="button" aria-label="탭 편집" title="탭 편집" aria-expanded="false" aria-controls="contextMenu">
+                    <svg class="edit-tab-icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+                        <path d="M4 14.7 5 11l7.7-7.7a1.5 1.5 0 0 1 2.1 0l1.9 1.9a1.5 1.5 0 0 1 0 2.1L9 15l-3.7 1A1.1 1.1 0 0 1 4 14.7Z" />
+                        <path d="M11.6 4.4 15.6 8.4" />
+                    </svg>
+                </button>
             </section>
 
             <section class="watchlist-card" aria-label="관심종목">
                 <div class="tab-strip" aria-label="관심종목 탭">
                     <div id="tabs" class="tabs"></div>
-                    <button id="addTabButton" class="new-tab-button" type="button" title="탭 추가">+</button>
-                    <button id="editTabButton" class="edit-tab-button" type="button" aria-expanded="false" aria-controls="contextMenu">Edit</button>
                 </div>
 
                 <div class="panel-body">

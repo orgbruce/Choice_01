@@ -65,7 +65,7 @@ button { cursor: pointer; }
     padding: 6px 0 40px;
 }
 
-.page-intro { display: flex; align-items: baseline; gap: 12px; margin-bottom: 14px; }
+.page-intro { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
 .page-intro h2 { margin: 0; font-size: 22px; line-height: 1.1; }
 .page-intro p { margin: 0; color: var(--muted); font-size: 14px; }
 
@@ -157,35 +157,40 @@ body.layout-hide-navigation .top-horizontal-scroll {
     display: grid;
     place-items: center;
     flex: 0 0 auto;
-    height: 28px;
-    border: 0;
-    border-radius: 8px 8px 0 0;
+    width: 30px;
+    height: 30px;
+    border: 1px solid #9aa8b8;
+    border-radius: 50%;
+    background: #eef3f8;
+    color: var(--purple);
 }
 
 .new-tab-button {
-    width: 30px;
-    background: #dbe5ee;
-    color: var(--purple);
     font-size: 22px;
+    font-weight: 400;
     line-height: 1;
 }
 
 .new-tab-button:hover { background: #d3e0eb; }
 
 .edit-tab-button {
-    min-width: 54px;
-    padding: 0 13px;
-    border: 1px solid var(--line);
-    border-bottom: 0;
-    background: #fff;
-    color: var(--text);
-    font-size: 13px;
-    font-weight: 700;
+    padding: 0;
+    color: #ef4444;
 }
 
 .edit-tab-button:hover,
 .edit-tab-button[aria-expanded="true"] {
     background: #f1f5f9;
+}
+
+.edit-tab-icon {
+    width: 17px;
+    height: 17px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
 }
 
 .panel-body {
