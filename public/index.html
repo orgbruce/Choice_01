@@ -29,6 +29,7 @@
                 <div class="tab-strip" aria-label="관심종목 탭">
                     <div id="tabs" class="tabs"></div>
                     <button id="addTabButton" class="new-tab-button" type="button" title="탭 추가">+</button>
+                    <button id="editTabButton" class="edit-tab-button" type="button" aria-expanded="false" aria-controls="contextMenu">Edit</button>
                 </div>
 
                 <div class="panel-body">
@@ -81,6 +82,7 @@
     </div>
 
     <nav id="contextMenu" class="context-menu" aria-label="탭 메뉴">
+        <button id="deleteTabButton" type="button">탭 삭제</button>
         <button id="renameTabButton" type="button">이름 변경</button>
     </nav>
 

@@ -72,6 +72,7 @@ const FETCHABLE_COLUMN_KEYS = new Set([
 
 const tabsEl = document.getElementById("tabs");
 const addTabButton = document.getElementById("addTabButton");
+const editTabButton = document.getElementById("editTabButton");
 const stockInput = document.getElementById("stockInput");
 const suggestionsEl = document.getElementById("suggestions");
 const suggestionStatusEl = document.getElementById("suggestionStatus");
@@ -90,6 +91,7 @@ const columnGroupTabsEl = document.getElementById("columnGroupTabs");
 const columnSettingsButton = document.getElementById("columnSettingsButton");
 const columnSettingsMenu = document.getElementById("columnSettingsMenu");
 const contextMenu = document.getElementById("contextMenu");
+const deleteTabButton = document.getElementById("deleteTabButton");
 const renameTabButton = document.getElementById("renameTabButton");
 const stockContextMenu = document.getElementById("stockContextMenu");
 const writeMemoButton = document.getElementById("writeMemoButton");
@@ -397,17 +399,6 @@ function renderTabs() {
         title.className = "tab-title";
         title.textContent = tab.title;
 
-        const close = document.createElement("button");
-        close.className = "tab-close";
-        close.type = "button";
-        close.textContent = "x";
-        close.title = "닫기";
-
-        close.addEventListener("click", (event) => {
-            event.stopPropagation();
-            openDeleteTabDialog(tab.id);
-        });
-
         tabButton.addEventListener("click", () => {
             state.activeTabId = tab.id;
             hideContextMenu();
@@ -421,11 +412,6 @@ function renderTabs() {
         });
 
         tabButton.addEventListener("dragstart", (event) => {
-            if (event.target.closest(".tab-close")) {
-                event.preventDefault();
-                return;
-            }
-
             draggedTabId = tab.id;
             tabButton.classList.add("dragging");
             event.dataTransfer.effectAllowed = "move";
@@ -455,7 +441,7 @@ function renderTabs() {
             moveTab(draggedTabId, tab.id);
         });
 
-        tabButton.append(title, close);
+        tabButton.append(title);
         tabsEl.appendChild(tabButton);
     });
 }
@@ -948,6 +934,17 @@ function renameTab() {
     hideContextMenu();
 }
 
+function deleteContextTab() {
+    const tab = state.tabs.find((item) => item.id === contextTabId);
+    if (!tab) return;
+    if (state.tabs.length === 1) {
+        hideContextMenu();
+        return;
+    }
+
+    openDeleteTabDialog(tab.id);
+}
+
 function getContextStock() {
     const activeTab = getActiveTab();
     return activeTab.stocks.find((stock) => stock.ticker === contextStockTicker);
@@ -1117,10 +1114,37 @@ function showContextMenu(x, y) {
     contextMenu.style.left = `${x}px`;
     contextMenu.style.top = `${y}px`;
     contextMenu.classList.add("open");
+    deleteTabButton.disabled = state.tabs.length === 1;
+    const rect = contextMenu.getBoundingClientRect();
+    const maxLeft = Math.max(8, window.innerWidth - rect.width - 8);
+    const maxTop = Math.max(8, window.innerHeight - rect.height - 8);
+    const left = Math.min(Math.max(8, x), maxLeft);
+    const top = Math.min(Math.max(8, y), maxTop);
+    contextMenu.style.left = `${left}px`;
+    contextMenu.style.top = `${top}px`;
+    editTabButton?.setAttribute("aria-expanded", "true");
 }
 
 function hideContextMenu() {
     contextMenu.classList.remove("open");
+    editTabButton?.setAttribute("aria-expanded", "false");
+}
+
+function toggleEditTabMenu() {
+    if (contextMenu.classList.contains("open")) {
+        hideContextMenu();
+        return;
+    }
+
+    contextTabId = state.activeTabId;
+    const rect = editTabButton.getBoundingClientRect();
+    showContextMenu(rect.left, rect.bottom + 6);
+    const maxLeft = Math.max(8, window.innerWidth - contextMenu.offsetWidth - 8);
+    const left = Math.min(
+        Math.max(8, rect.right - contextMenu.offsetWidth),
+        maxLeft
+    );
+    contextMenu.style.left = `${left}px`;
 }
 
 function showStockContextMenu(x, y) {
@@ -1389,6 +1413,11 @@ async function updateActiveStocks() {
 }
 
 addTabButton.addEventListener("click", addTab);
+editTabButton.addEventListener("click", (event) => {
+    event.stopPropagation();
+    toggleEditTabMenu();
+});
+deleteTabButton.addEventListener("click", deleteContextTab);
 renameTabButton.addEventListener("click", renameTab);
 writeMemoButton.addEventListener("click", openMemoDialog);
 updateButton.addEventListener("click", updateActiveStocks);
@@ -1537,7 +1566,7 @@ stockInput.addEventListener("keydown", async (event) => {
 });
 
 document.addEventListener("click", (event) => {
-    if (!contextMenu.contains(event.target)) hideContextMenu();
+    if (!contextMenu.contains(event.target) && !event.target.closest("#editTabButton")) hideContextMenu();
     if (!stockContextMenu.contains(event.target)) hideStockContextMenu();
     if (!event.target.closest(".search-wrap")) suggestionsEl.classList.remove("open");
     if (!event.target.closest(".column-settings")) hideColumnSettings();

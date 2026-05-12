@@ -111,20 +111,25 @@ body.layout-hide-navigation .top-horizontal-scroll {
     align-items: end;
     gap: 4px;
     min-height: 20px;
-    overflow-x: auto;
 }
 
-.tabs { display: flex; align-items: end; gap: 4px; }
+.tabs {
+    display: flex;
+    align-items: end;
+    gap: 4px;
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow-x: auto;
+}
 
 .tab {
     display: flex;
     align-items: center;
-    gap: 1px;
     width: auto;
     min-width: max-content;
     max-width: min(220px, 38vw);
     height: 28px;
-    padding: 0 10px 0 15px;
+    padding: 0 15px;
     border: 1px solid var(--line);
     border-bottom: 0;
     border-radius: 8px 8px 0 0;
@@ -147,30 +152,18 @@ body.layout-hide-navigation .top-horizontal-scroll {
     font-size: 15px;
 }
 
-.tab-close {
+.new-tab-button,
+.edit-tab-button {
     display: grid;
     place-items: center;
     flex: 0 0 auto;
-    width: 16px;
-    height: 16px;
-    border: 0;
-    border-radius: 50%;
-    background: transparent;
-    color: var(--muted);
-    font-size: 13px;
-    font-weight: 500;
-    line-height: 1;
-}
-
-.tab-close:hover { background: #dde7f0; }
-
-.new-tab-button {
-    display: grid;
-    place-items: center;
-    width: 30px;
     height: 28px;
     border: 0;
     border-radius: 8px 8px 0 0;
+}
+
+.new-tab-button {
+    width: 30px;
     background: #dbe5ee;
     color: var(--purple);
     font-size: 22px;
@@ -178,6 +171,22 @@ body.layout-hide-navigation .top-horizontal-scroll {
 }
 
 .new-tab-button:hover { background: #d3e0eb; }
+
+.edit-tab-button {
+    min-width: 54px;
+    padding: 0 13px;
+    border: 1px solid var(--line);
+    border-bottom: 0;
+    background: #fff;
+    color: var(--text);
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.edit-tab-button:hover,
+.edit-tab-button[aria-expanded="true"] {
+    background: #f1f5f9;
+}
 
 .panel-body {
     min-height: 520px;
@@ -658,6 +667,8 @@ body.layout-hide-navigation .top-horizontal-scroll {
 .context-menu.open { display: block; }
 .context-menu button { width: 100%; padding: 9px 10px; border: 0; border-radius: 6px; background: white; text-align: left; }
 .context-menu button:hover { background: #f1f5f9; }
+.context-menu button:disabled { color: var(--muted); cursor: not-allowed; opacity: 0.55; }
+.context-menu button:disabled:hover { background: white; }
 
 .dialog-overlay {
     position: fixed;
