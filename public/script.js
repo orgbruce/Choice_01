@@ -28,8 +28,6 @@ const COLUMN_DEFS = [
     { key: "chart_d", label: "1일", className: "chart-cell", width: "minmax(220px, 1.8fr)", chartType: "stock", chartPeriod: "d" },
     { key: "chart_candle_d", label: "일봉", className: "chart-cell", width: "minmax(220px, 1.8fr)", chartType: "candle", chartPeriod: "d" },
     { key: "chart_candle_w", label: "주봉", className: "chart-cell", width: "minmax(220px, 1.8fr)", chartType: "candle", chartPeriod: "w" },
-    { key: "chart_m", label: "1개월", className: "chart-cell", width: "minmax(220px, 1.8fr)", chartType: "stock", chartPeriod: "m" },
-    { key: "chart_m3", label: "3개월", className: "chart-cell", width: "minmax(220px, 1.8fr)", chartType: "stock", chartPeriod: "m3" },
     { key: "chart_y", label: "1년", className: "chart-cell", width: "minmax(220px, 1.8fr)", chartType: "stock", chartPeriod: "y" },
     { key: "chart_y3", label: "3년", className: "chart-cell", width: "minmax(220px, 1.8fr)", chartType: "stock", chartPeriod: "y3" },
     { key: "chart_y10", label: "10년", className: "chart-cell", width: "minmax(220px, 1.8fr)", chartType: "stock", chartPeriod: "y10" },
@@ -54,7 +52,7 @@ const COLUMN_GROUPS = [
     {
         key: "chart",
         label: "차트",
-        columns: ["name", "ticker", "price", "chart_d", "chart_candle_d", "chart_candle_w", "chart_m", "chart_m3", "chart_y", "chart_y3", "chart_y10"],
+        columns: ["name", "ticker", "price", "chart_d", "chart_candle_d", "chart_candle_w", "chart_y", "chart_y3", "chart_y10"],
     },
 ];
 
