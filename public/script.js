@@ -373,7 +373,7 @@ function getActiveTab() {
 function getChartMarket(stock) {
     const ticker = String(stock?.ticker || "").toUpperCase();
     const market = String(stock?.market || "").toUpperCase();
-    return ticker.endsWith(".KS") || ticker.endsWith(".KQ") || market.includes("KOSPI") || market.includes("KOSDAQ") || market.includes("KOREA")
+    return ticker === "^KS11" || ticker === "^KQ11" || ticker.endsWith(".KS") || ticker.endsWith(".KQ") || market.includes("KOSPI") || market.includes("KOSDAQ") || market.includes("KOREA")
         ? "kr"
         : "us";
 }
@@ -381,6 +381,8 @@ function getChartMarket(stock) {
 function getStockplusSymbol(stock) {
     const rawTicker = String(stock?.ticker || "").trim().toUpperCase();
     if (!rawTicker) return "";
+    if (rawTicker === "^KS11") return "KGG01P";
+    if (rawTicker === "^KQ11") return "QGG01P";
     if (getChartMarket(stock) === "kr") {
         const code = rawTicker.replace(/\.(KS|KQ)$/i, "").replace(/^A/i, "");
         return `A${code}`;
