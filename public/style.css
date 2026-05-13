@@ -157,16 +157,16 @@ body.layout-hide-navigation .top-horizontal-scroll {
     display: grid;
     place-items: center;
     flex: 0 0 auto;
-    width: 30px;
-    height: 30px;
-    border: 1px solid #9aa8b8;
-    border-radius: 50%;
-    background: #eef3f8;
+    width: 22px;
+    height: 20px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: #fff;
     color: var(--purple);
 }
 
 .new-tab-button {
-    font-size: 22px;
+    font-size: 16px;
     font-weight: 400;
     line-height: 1;
 }
@@ -184,8 +184,8 @@ body.layout-hide-navigation .top-horizontal-scroll {
 }
 
 .edit-tab-icon {
-    width: 17px;
-    height: 17px;
+    width: 13px;
+    height: 13px;
     fill: none;
     stroke: currentColor;
     stroke-width: 1.8;
@@ -467,6 +467,10 @@ body.layout-hide-navigation .top-horizontal-scroll {
     font: inherit;
     text-align: center;
     cursor: grab;
+    line-height: 1.2;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: keep-all;
 }
 
 .table-head > .stock-header-cell[data-column-key="name"],
@@ -548,8 +552,11 @@ body.layout-hide-navigation .top-horizontal-scroll {
     overflow: hidden;
     padding: 0 14px;
     border-right: 1px solid transparent;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    line-height: 1.25;
+    text-align: center;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: break-word;
 }
 .stock-cell.performance-cell {
     min-height: 58px;
@@ -656,6 +663,125 @@ body.layout-hide-navigation .top-horizontal-scroll {
 .delete-stock:hover { background: #f1f5f9; }
 .empty-state { padding: 34px 16px; color: var(--muted); text-align: center; }
 .empty-state.hidden { display: none; }
+
+.stock-cell.chart-cell {
+    min-height: 142px;
+    padding: 6px;
+    overflow: visible;
+}
+
+.voca-entry-thumb.stock-chart-thumb {
+    position: relative;
+    display: inline-flex;
+    width: 100%;
+    height: 130px;
+    overflow: visible;
+    border: 1px solid transparent;
+    border-radius: 7px;
+    background: #fff;
+    vertical-align: middle;
+    box-shadow: none;
+}
+
+.stock-chart-image {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    background: #fff;
+    border-radius: 6px;
+    cursor: zoom-in;
+}
+
+.entry-image-popout {
+    position: fixed;
+    z-index: 2147483000;
+    left: 80px;
+    top: 80px;
+    width: min(72vw, 720px);
+    max-width: calc(100vw - 24px);
+    background: #fff;
+    border: 1px solid #cbd5e1;
+    border-radius: 10px;
+    box-shadow: 0 14px 38px rgba(15,23,42,.26);
+    overflow: hidden;
+    resize: both;
+}
+
+.entry-image-popout-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 5px;
+    background: #f8fafc;
+    border-bottom: 1px solid #e2e8f0;
+    user-select: none;
+}
+
+.entry-image-popout-drag {
+    flex: 1;
+    min-width: 44px;
+    height: 20px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: #fff;
+    color: #475569;
+    font-weight: 900;
+    cursor: move;
+}
+
+.entry-image-popout-btn {
+    width: 22px;
+    height: 20px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: #fff;
+    color: #111827;
+    font-size: 13px;
+    font-weight: 900;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.entry-image-popout-body {
+    position: relative;
+    padding: 8px;
+    max-height: calc(100vh - 92px);
+    overflow: auto;
+    background: #fff;
+}
+
+.entry-image-popout-title {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    width: fit-content;
+    max-width: calc(100% - 12px);
+    margin: 0 0 -30px 0;
+    padding: 5px 9px;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.9);
+    color: #111827;
+    font-size: 13px;
+    font-weight: 800;
+    line-height: 1.2;
+    pointer-events: none;
+}
+
+.entry-image-popout.is-zoomed .entry-image-popout-body {
+    cursor: grab;
+}
+
+.entry-image-popout.is-zoomed .entry-image-popout-body.is-panning {
+    cursor: grabbing;
+}
+
+.entry-image-popout-body img {
+    display: block;
+    width: 100%;
+    height: auto;
+    transform-origin: top left;
+}
 
 .context-menu {
     position: fixed;

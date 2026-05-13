@@ -1,5 +1,5 @@
 {
-  "activeTabId": "tab-1778597359100-95d2f7ea858d4",
+  "activeTabId": "tab-1777738334968-b794e6d6d87978",
   "visibleColumns": [
     "name",
     "ticker",
@@ -22,9 +22,17 @@
     "performance_ytd",
     "performance_1y",
     "performance_3y",
-    "performance_5y"
+    "performance_5y",
+    "chart_d",
+    "chart_candle_d",
+    "chart_candle_w",
+    "chart_m",
+    "chart_m3",
+    "chart_y",
+    "chart_y3",
+    "chart_y10"
   ],
-  "activeColumnGroup": "price",
+  "activeColumnGroup": "chart",
   "groupVisibleColumns": {
     "price": [
       "name",
@@ -54,6 +62,18 @@
       "performance_ytd",
       "performance_3y",
       "performance_5y"
+    ],
+    "chart": [
+      "name",
+      "price",
+      "chart_d",
+      "chart_candle_d",
+      "chart_candle_w",
+      "chart_m",
+      "chart_m3",
+      "chart_y",
+      "chart_y3",
+      "chart_y10"
     ]
   },
   "groupColumnOrder": {
@@ -85,12 +105,45 @@
       "performance_ytd",
       "performance_3y",
       "performance_5y"
+    ],
+    "chart": [
+      "name",
+      "ticker",
+      "price",
+      "chart_d",
+      "chart_candle_d",
+      "chart_candle_w",
+      "chart_m",
+      "chart_m3",
+      "chart_y",
+      "chart_y3",
+      "chart_y10"
     ]
   },
   "groupColumnWidths": {
-    "price": {},
+    "price": {
+      "average_price": 126,
+      "close": 165,
+      "name": 134,
+      "price": 163,
+      "ticker": 135,
+      "volume": 93
+    },
     "fundamental": {},
-    "performance": {}
+    "performance": {},
+    "chart": {
+      "chart_candle_d": 243,
+      "chart_candle_w": 183,
+      "chart_d": 186,
+      "chart_m": 182,
+      "chart_m3": 179,
+      "chart_y": 147,
+      "chart_y10": 187,
+      "chart_y3": 198,
+      "name": 136,
+      "price": 126,
+      "ticker": 110
+    }
   },
-  "columnSchemaVersion": 6
+  "columnSchemaVersion": 7
 }

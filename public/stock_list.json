@@ -68,6 +68,7 @@
         {"name": "유한양행", "ticker": "000100.KS", "market": "KOSPI", "per": "-", "roic": "-", "operating_income_growth": "-", "price": "-", "change": "-", "volume": "-"},
         {"name": "펩트론", "ticker": "087010.KQ", "market": "KOSDAQ", "per": "-", "roic": "-", "operating_income_growth": "-", "price": "-", "change": "-", "volume": "-"},
         {"name": "넥슨게임즈", "ticker": "225570.KQ", "market": "KOSDAQ", "per": "-", "roic": "-", "operating_income_growth": "-", "price": "-", "change": "-", "volume": "-"},
+        {"name": "펄어비스", "ticker": "263750.KQ", "market": "KOSDAQ", "per": "-", "roic": "-", "operating_income_growth": "-", "price": "-", "change": "-", "volume": "-"},
         {"name": "디앤디파마텍", "ticker": "347850.KQ", "market": "KOSDAQ", "per": "-", "roic": "-", "operating_income_growth": "-", "price": "-", "change": "-", "volume": "-"},
         {"name": "풍산", "ticker": "103140.KS", "market": "KOSPI", "per": "-", "roic": "-", "operating_income_growth": "-", "price": "-", "change": "-", "volume": "-"},
         {"name": "에이피알", "ticker": "278470.KS", "market": "KOSPI", "per": "-", "roic": "-", "operating_income_growth": "-", "price": "-", "change": "-", "volume": "-"},

@@ -1,6 +1,6 @@
 let STOCKS = Array.isArray(window.CHOICE_STOCKS) ? window.CHOICE_STOCKS : [];
 const STORAGE_KEY = "choice.state.v1";
-const COLUMN_SCHEMA_VERSION = 6;
+const COLUMN_SCHEMA_VERSION = 7;
 
 const COLUMN_DEFS = [
     { key: "name", label: "종목명", className: "stock-name", width: "minmax(140px, 1.4fr)" },
@@ -25,6 +25,14 @@ const COLUMN_DEFS = [
     { key: "performance_1y", label: "1Y", className: "performance-cell", width: "minmax(48px, 0.75fr)", valueClass: getChangeClass },
     { key: "performance_3y", label: "3Y", className: "performance-cell", width: "minmax(48px, 0.75fr)", valueClass: getChangeClass },
     { key: "performance_5y", label: "5Y", className: "performance-cell", width: "minmax(48px, 0.75fr)", valueClass: getChangeClass },
+    { key: "chart_d", label: "1일", className: "chart-cell", width: "minmax(220px, 1.8fr)", chartType: "stock", chartPeriod: "d" },
+    { key: "chart_candle_d", label: "일봉", className: "chart-cell", width: "minmax(220px, 1.8fr)", chartType: "candle", chartPeriod: "d" },
+    { key: "chart_candle_w", label: "주봉", className: "chart-cell", width: "minmax(220px, 1.8fr)", chartType: "candle", chartPeriod: "w" },
+    { key: "chart_m", label: "1개월", className: "chart-cell", width: "minmax(220px, 1.8fr)", chartType: "stock", chartPeriod: "m" },
+    { key: "chart_m3", label: "3개월", className: "chart-cell", width: "minmax(220px, 1.8fr)", chartType: "stock", chartPeriod: "m3" },
+    { key: "chart_y", label: "1년", className: "chart-cell", width: "minmax(220px, 1.8fr)", chartType: "stock", chartPeriod: "y" },
+    { key: "chart_y3", label: "3년", className: "chart-cell", width: "minmax(220px, 1.8fr)", chartType: "stock", chartPeriod: "y3" },
+    { key: "chart_y10", label: "10년", className: "chart-cell", width: "minmax(220px, 1.8fr)", chartType: "stock", chartPeriod: "y10" },
 ];
 
 const COLUMN_GROUPS = [
@@ -42,6 +50,11 @@ const COLUMN_GROUPS = [
         key: "performance",
         label: "성과 상승률",
         columns: ["name", "performance_1d", "performance_1w", "performance_1m", "performance_1y", "performance_ytd", "performance_3y", "performance_5y"],
+    },
+    {
+        key: "chart",
+        label: "차트",
+        columns: ["name", "ticker", "price", "chart_d", "chart_candle_d", "chart_candle_w", "chart_m", "chart_m3", "chart_y", "chart_y3", "chart_y10"],
     },
 ];
 
@@ -138,6 +151,7 @@ let lastSuggestionQuery = "";
 let pendingSuggestionPromise = null;
 let layoutToggleStage = 0;
 let saveStateTimer = null;
+let entryImagePopoutTopZ = 2147483000;
 
 function createId() {
     return `tab-${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -354,6 +368,167 @@ function getActiveTab() {
         state.activeTabId = tab.id;
     }
     return tab;
+}
+
+function getChartMarket(stock) {
+    const ticker = String(stock?.ticker || "").toUpperCase();
+    const market = String(stock?.market || "").toUpperCase();
+    return ticker.endsWith(".KS") || ticker.endsWith(".KQ") || market.includes("KOSPI") || market.includes("KOSDAQ") || market.includes("KOREA")
+        ? "kr"
+        : "us";
+}
+
+function getStockplusSymbol(stock) {
+    const rawTicker = String(stock?.ticker || "").trim().toUpperCase();
+    if (!rawTicker) return "";
+    if (getChartMarket(stock) === "kr") {
+        const code = rawTicker.replace(/\.(KS|KQ)$/i, "").replace(/^A/i, "");
+        return `A${code}`;
+    }
+    return rawTicker;
+}
+
+function getStockplusStockUrl(stock) {
+    const symbol = getStockplusSymbol(stock);
+    if (!symbol) return "#";
+    return getChartMarket(stock) === "kr"
+        ? `https://www.stockplus.com/m/stocks/KOREA-${symbol}`
+        : `https://www.stockplus.com/m/stocks/USA-${symbol}`;
+}
+
+function getChartImageUrl(stock, column) {
+    const symbol = getStockplusSymbol(stock);
+    if (!symbol || !column?.chartType) return "";
+    const market = getChartMarket(stock);
+    if (column.chartType === "candle") {
+        return `https://quot-chart.stockplus.com/images/${market}/candle/${column.chartPeriod}/${symbol}.png`;
+    }
+    return `https://quot-chart.stockplus.com/images/${market}/stock/${column.chartPeriod}/${symbol}.png`;
+}
+
+function clampEntryImagePopoutPosition(popout) {
+    if (!popout) return;
+    const rect = popout.getBoundingClientRect();
+    const gap = 8;
+    const maxLeft = Math.max(gap, window.innerWidth - rect.width - gap);
+    const maxTop = Math.max(gap, window.innerHeight - rect.height - gap);
+    const left = Math.min(Math.max(gap, Number.parseFloat(popout.style.left) || gap), maxLeft);
+    const top = Math.min(Math.max(gap, Number.parseFloat(popout.style.top) || gap), maxTop);
+    popout.style.left = `${left}px`;
+    popout.style.top = `${top}px`;
+}
+
+function closeEntryImagePopout(id) {
+    document.getElementById(id)?.remove();
+}
+
+function bringEntryImagePopoutToFront(popoutOrId) {
+    const popout = typeof popoutOrId === "string"
+        ? document.getElementById(popoutOrId)
+        : popoutOrId;
+    if (!popout) return;
+    entryImagePopoutTopZ += 1;
+    popout.style.zIndex = String(entryImagePopoutTopZ);
+}
+
+function setEntryImagePopoutScale(id, delta) {
+    const popout = document.getElementById(id);
+    const image = popout?.querySelector(".entry-image-popout-body img");
+    if (!popout || !image) return;
+    bringEntryImagePopoutToFront(popout);
+    const current = Number(popout.dataset.scale || "1") || 1;
+    const next = Math.min(4, Math.max(0.25, Math.round((current + delta) * 100) / 100));
+    popout.dataset.scale = String(next);
+    image.style.width = `${next * 100}%`;
+    popout.classList.toggle("is-zoomed", next > 1);
+}
+
+function startEntryImagePopoutDrag(event, id) {
+    const popout = document.getElementById(id);
+    if (!popout) return;
+    event.preventDefault();
+    bringEntryImagePopoutToFront(popout);
+    const startX = event.clientX;
+    const startY = event.clientY;
+    const rect = popout.getBoundingClientRect();
+    const startLeft = rect.left;
+    const startTop = rect.top;
+    const handleMove = (moveEvent) => {
+        popout.style.left = `${startLeft + moveEvent.clientX - startX}px`;
+        popout.style.top = `${startTop + moveEvent.clientY - startY}px`;
+        clampEntryImagePopoutPosition(popout);
+    };
+    const handleUp = () => {
+        document.removeEventListener("pointermove", handleMove);
+        document.removeEventListener("pointerup", handleUp);
+    };
+    document.addEventListener("pointermove", handleMove);
+    document.addEventListener("pointerup", handleUp, { once: true });
+}
+
+function startEntryImagePopoutPan(event, id) {
+    const popout = document.getElementById(id);
+    const body = popout?.querySelector(".entry-image-popout-body");
+    if (!popout || !body || Number(popout.dataset.scale || "1") <= 1) return;
+    if (event.button !== undefined && event.button !== 0) return;
+    event.preventDefault();
+    bringEntryImagePopoutToFront(popout);
+    body.classList.add("is-panning");
+    const startX = event.clientX;
+    const startY = event.clientY;
+    const startScrollLeft = body.scrollLeft;
+    const startScrollTop = body.scrollTop;
+    const handleMove = (moveEvent) => {
+        body.scrollLeft = startScrollLeft - (moveEvent.clientX - startX);
+        body.scrollTop = startScrollTop - (moveEvent.clientY - startY);
+    };
+    const handleUp = () => {
+        body.classList.remove("is-panning");
+        document.removeEventListener("pointermove", handleMove);
+        document.removeEventListener("pointerup", handleUp);
+    };
+    document.addEventListener("pointermove", handleMove);
+    document.addEventListener("pointerup", handleUp, { once: true });
+}
+
+function openChartImagePopout(event, imageSrc, imageName = "chart image") {
+    if (!imageSrc) return;
+    event?.stopPropagation?.();
+    const existing = Array.from(document.querySelectorAll(".entry-image-popout"))
+        .find((item) => item.dataset.imageSrc === imageSrc);
+    if (existing) {
+        bringEntryImagePopoutToFront(existing);
+        clampEntryImagePopoutPosition(existing);
+        return;
+    }
+
+    const id = `entryImagePopout-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const popout = document.createElement("div");
+    popout.id = id;
+    popout.className = "entry-image-popout";
+    popout.dataset.scale = "1";
+    popout.dataset.imageSrc = imageSrc;
+    popout.innerHTML = `
+        <div class="entry-image-popout-toolbar">
+            <button class="entry-image-popout-drag" type="button" onpointerdown="startEntryImagePopoutDrag(event, '${id}')" title="창 이동">::</button>
+            <button class="entry-image-popout-btn" type="button" onclick="setEntryImagePopoutScale('${id}', 0.15)" title="확대">+</button>
+            <button class="entry-image-popout-btn" type="button" onclick="setEntryImagePopoutScale('${id}', -0.15)" title="축소">-</button>
+            <button class="entry-image-popout-btn" type="button" onclick="closeEntryImagePopout('${id}')" title="닫기">x</button>
+        </div>
+        <div class="entry-image-popout-body" onpointerdown="startEntryImagePopoutPan(event, '${id}')">
+            <div class="entry-image-popout-title">${escapeHtml(imageName)}</div>
+            <img src="${escapeHtml(imageSrc)}" alt="${escapeHtml(imageName)}">
+        </div>
+    `;
+    document.body.appendChild(popout);
+    popout.addEventListener("pointerdown", () => bringEntryImagePopoutToFront(popout), { capture: true });
+    bringEntryImagePopoutToFront(popout);
+    const sourceRect = event?.target?.getBoundingClientRect?.();
+    const left = sourceRect ? sourceRect.left + 16 : 80;
+    const top = sourceRect ? sourceRect.bottom + 8 : 80;
+    popout.style.left = `${left}px`;
+    popout.style.top = `${top}px`;
+    clampEntryImagePopoutPosition(popout);
 }
 
 function render() {
@@ -754,6 +929,20 @@ function renderStocks() {
                     contextStockTicker = stock.ticker;
                     showStockContextMenu(event.clientX, event.clientY);
                 });
+            } else if (column.chartType) {
+                const imageSrc = getChartImageUrl(stock, column);
+                const imageName = `${stock.name || stock.ticker || "stock"} ${column.label}`;
+                const thumb = document.createElement("span");
+                thumb.className = "voca-entry-thumb stock-chart-thumb";
+                const image = document.createElement("img");
+                image.className = "stock-chart-image";
+                image.src = imageSrc;
+                image.alt = imageName;
+                image.loading = "lazy";
+                image.addEventListener("click", (event) => openChartImagePopout(event, imageSrc, imageName));
+
+                thumb.appendChild(image);
+                cell.appendChild(thumb);
             } else {
                 cell.textContent = column.key === "average_price"
                     ? formatAveragePrice(stock.average_price)
@@ -1331,7 +1520,7 @@ function addStock(stock) {
     const activeTab = getActiveTab();
     const exists = activeTab.stocks.some((item) => item.ticker === stock.ticker);
     if (!exists) {
-        activeTab.stocks.push({ ...stock });
+        activeTab.stocks.unshift({ ...stock });
     }
 
     stockInput.value = "";
