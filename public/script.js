@@ -1,6 +1,56 @@
 let STOCKS = Array.isArray(window.CHOICE_STOCKS) ? window.CHOICE_STOCKS : [];
 const STORAGE_KEY = "choice.state.v1";
 const COLUMN_SCHEMA_VERSION = 7;
+const inlineChartCache = new Map();
+const PRICE_LINK_OVERRIDES = new Map([
+    ["^GSPC", "https://finviz.com/map?t=sec"],
+    ["^IXIC", "https://finviz.com/map?t=sec_ndx"],
+    ["^KS11", "https://markets.hankyung.com/marketmap/kospi"],
+    ["^KQ11", "https://markets.hankyung.com/marketmap/kosdaq"],
+]);
+const YAHOO_SVG_CHART_TICKERS = new Set([
+    "^VIX",
+    "KRW=X",
+    "DX-Y.NYB",
+    "KR2Y",
+    "KR10Y",
+    "^TNX",
+    "GC=F",
+    "NG=F",
+    "SI=F",
+    "HG=F",
+    "ZW=F",
+    "CL=F",
+    "PENTAGON_PIZZA_INDEX",
+    "^DJI",
+    "^SOX",
+    "000001.SS",
+    "^N225",
+    "^HSI",
+    "^FTSE",
+    "^FCHI",
+    "^GDAXI",
+    "JPYKRW=X",
+    "EURKRW=X",
+    "YM=F",
+    "NKD=F",
+    "ES=F",
+    "6E=F",
+    "NQ=F",
+    "FDAX.DE",
+    "RTY=F",
+    "VX=F",
+    "KR_FUTURE_ENERGY_CHEMICAL",
+    "KR_FUTURE_HEAVY_INDUSTRY",
+    "KR_FUTURE_IT",
+    "KR_FUTURE_HEALTHCARE",
+    "KR_FUTURE_FINANCE",
+    "KR_FUTURE_CONSUMER_STAPLES",
+    "KR_FUTURE_CONSUMER_DISCRETIONARY",
+    "KR_FUTURE_STEEL_MATERIALS",
+    "KR_FUTURE_CONSTRUCTION",
+    "KR_FUTURE_INDUSTRIALS",
+]);
 
 const COLUMN_DEFS = [
     { key: "name", label: "종목명", className: "stock-name", width: "minmax(140px, 1.4fr)" },
@@ -134,8 +184,8 @@ let contextTabId = null;
 let contextStockTicker = null;
 let editingAveragePriceTicker = null;
 let activeSuggestionIndex = -1;
-let draggedTicker = null;
-let dragHandleArmedTicker = null;
+let draggedStockRowId = null;
+let dragHandleArmedStockRowId = null;
 let draggedColumnKey = null;
 let draggedTabId = null;
 let resizingColumn = null;
@@ -153,6 +203,10 @@ let entryImagePopoutTopZ = 2147483000;
 
 function createId() {
     return `tab-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function createStockRowId() {
+    return `stock-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
 function normalizeSearchText(value) {
@@ -245,6 +299,25 @@ function getColumnGroup(groupKey = state.activeColumnGroup) {
 
 function getColumnByKey(key) {
     return COLUMN_DEFS.find((column) => column.key === key);
+}
+
+function getPriceLinkUrl(stock) {
+    const ticker = String(stock?.ticker || "").trim();
+    if (!ticker) return "";
+    const overrideUrl = PRICE_LINK_OVERRIDES.get(ticker.toUpperCase());
+    if (overrideUrl) return overrideUrl;
+    return `https://finance.yahoo.com/quote/${encodeURIComponent(ticker)}`;
+}
+
+function openPriceLinkWindow(stock) {
+    const priceLinkUrl = getPriceLinkUrl(stock);
+    if (!priceLinkUrl) return;
+    const ticker = String(stock?.ticker || "stock").replace(/[^\w.-]/g, "_");
+    window.open(
+        priceLinkUrl,
+        `choicePriceLink_${ticker}_${Date.now()}`,
+        "popup=yes,width=1200,height=820,left=80,top=60,noopener"
+    );
 }
 
 function loadState() {
@@ -381,6 +454,9 @@ function getStockplusSymbol(stock) {
     if (!rawTicker) return "";
     if (rawTicker === "^KS11") return "KGG01P";
     if (rawTicker === "^KQ11") return "QGG01P";
+    if (rawTicker === "^IXIC") return "COMP";
+    if (rawTicker === "^GSPC") return "SP500";
+    if (rawTicker === "KRW=X") return "FRX.KRWUSD";
     if (getChartMarket(stock) === "kr") {
         const code = rawTicker.replace(/\.(KS|KQ)$/i, "").replace(/^A/i, "");
         return `A${code}`;
@@ -400,10 +476,243 @@ function getChartImageUrl(stock, column) {
     const symbol = getStockplusSymbol(stock);
     if (!symbol || !column?.chartType) return "";
     const market = getChartMarket(stock);
+    if (symbol === "FRX.KRWUSD" && column.chartType === "candle") {
+        return `https://quot-chart.stockplus.com/images/global/forexcandle/${column.chartPeriod}/${symbol}.png`;
+    }
     if (column.chartType === "candle") {
         return `https://quot-chart.stockplus.com/images/${market}/candle/${column.chartPeriod}/${symbol}.png`;
     }
     return `https://quot-chart.stockplus.com/images/${market}/stock/${column.chartPeriod}/${symbol}.png`;
+}
+
+function shouldRenderInlineChart(stock) {
+    const ticker = String(stock?.ticker || "").trim().toUpperCase();
+    return YAHOO_SVG_CHART_TICKERS.has(ticker);
+}
+
+function getInlineChartCacheKey(stock, column) {
+    return `${String(stock?.ticker || "").trim().toUpperCase()}|${column.chartType}|${column.chartPeriod}`;
+}
+
+function clearInlineChartCache(tickers = []) {
+    const targets = new Set(tickers.map((ticker) => String(ticker || "").trim().toUpperCase()).filter(Boolean));
+    if (!targets.size) {
+        inlineChartCache.clear();
+        return;
+    }
+
+    Array.from(inlineChartCache.keys()).forEach((key) => {
+        const [ticker] = key.split("|");
+        if (targets.has(ticker)) inlineChartCache.delete(key);
+    });
+}
+
+function getInlineChartData(stock, column) {
+    const key = getInlineChartCacheKey(stock, column);
+    if (!inlineChartCache.has(key)) {
+        const params = new URLSearchParams({
+            ticker: stock.ticker,
+            type: column.chartType,
+            period: column.chartPeriod,
+        });
+        inlineChartCache.set(
+            key,
+            fetch(`/api/chart-data?${params.toString()}`, { cache: "no-store" })
+                .then((response) => {
+                    if (!response.ok) throw new Error("chart data unavailable");
+                    return response.json();
+                })
+        );
+    }
+    return inlineChartCache.get(key);
+}
+
+function scaleChartY(value, minValue, maxValue, top, bottom) {
+    if (maxValue === minValue) return (top + bottom) / 2;
+    return top + ((maxValue - value) / (maxValue - minValue)) * (bottom - top);
+}
+
+function formatChartPrice(value) {
+    if (!Number.isFinite(value)) return "";
+    return value.toLocaleString("en-US", {
+        minimumFractionDigits: value >= 100 ? 0 : 2,
+        maximumFractionDigits: value >= 100 ? 0 : 2,
+    });
+}
+
+function formatChartDate(timestamp) {
+    const date = new Date(Number(timestamp) * 1000);
+    if (Number.isNaN(date.getTime())) return "";
+    return `${String(date.getFullYear()).slice(-2)}.${date.getMonth() + 1}.${date.getDate()}`;
+}
+
+function formatChartKstTime(timestamp) {
+    const date = new Date(Number(timestamp) * 1000);
+    if (Number.isNaN(date.getTime())) return "";
+    return new Intl.DateTimeFormat("en-US", {
+        timeZone: "Asia/Seoul",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+    }).format(date);
+}
+
+function getChartScale(values) {
+    const minRaw = Math.min(...values);
+    const maxRaw = Math.max(...values);
+    const span = Math.max(maxRaw - minRaw, Math.abs(maxRaw) * 0.02, 1);
+    return {
+        minValue: minRaw - span * 0.08,
+        maxValue: maxRaw + span * 0.08,
+    };
+}
+
+function getRecentSixHourPoints(points) {
+    const sortedPoints = points
+        .filter((point) => Number.isFinite(Number(point.time)))
+        .sort((left, right) => Number(left.time) - Number(right.time));
+    if (sortedPoints.length < 2) return sortedPoints;
+
+    const latestTime = Number(sortedPoints[sortedPoints.length - 1].time);
+    const startTime = latestTime - 6 * 60 * 60;
+    const recentPoints = sortedPoints.filter((point) => Number(point.time) >= startTime);
+    return recentPoints.length >= 2 ? recentPoints : sortedPoints.slice(-2);
+}
+
+function getTimeScaleX(timestamp, startTime, endTime, plotLeft, plotRight) {
+    if (endTime === startTime) return (plotLeft + plotRight) / 2;
+    return plotLeft + ((Number(timestamp) - startTime) / (endTime - startTime)) * (plotRight - plotLeft);
+}
+
+function renderChartAxes(points, minValue, maxValue, width, height, plotLeft, plotRight, plotTop, plotBottom, chartPeriod, chartType) {
+    const priceTicks = [maxValue, (maxValue + minValue) / 2, minValue];
+    const isOneDayLineChart = chartPeriod === "d" && chartType === "stock";
+    const dateRatios = isOneDayLineChart ? [1 / 6, 2 / 6, 3 / 6, 4 / 6, 5 / 6, 1] : [0.2, 0.4, 0.6, 0.8, 1];
+    const dateStep = (plotRight - plotLeft) / Math.max(points.length - 1, 1);
+    const latestTime = isOneDayLineChart ? Number(points[points.length - 1]?.time) : null;
+    const startTime = isOneDayLineChart ? latestTime - 6 * 60 * 60 : null;
+    const endTime = isOneDayLineChart ? latestTime : null;
+    const grid = priceTicks.map((value) => {
+        const y = scaleChartY(value, minValue, maxValue, plotTop, plotBottom);
+        return `M${plotLeft} ${y.toFixed(1)}H${plotRight}`;
+    }).join("");
+    const priceLabels = priceTicks.map((value) => {
+        const y = scaleChartY(value, minValue, maxValue, plotTop, plotBottom);
+        return `<text class="inline-stock-chart-price" x="${width - 4}" y="${(y + 4).toFixed(1)}">${formatChartPrice(value)}</text>`;
+    }).join("");
+    const dateLabels = dateRatios.map((ratio) => {
+        const tickTime = isOneDayLineChart ? startTime + 6 * 60 * 60 * ratio : null;
+        const index = Math.round((points.length - 1) * ratio);
+        if (!isOneDayLineChart && (index <= 0 || index >= points.length)) return "";
+        const x = isOneDayLineChart
+            ? getTimeScaleX(tickTime, startTime, endTime, plotLeft, plotRight)
+            : plotLeft + index * dateStep;
+        const label = isOneDayLineChart ? formatChartKstTime(tickTime) : formatChartDate(points[index].time);
+        return `<text class="inline-stock-chart-date" x="${x.toFixed(1)}" y="${height - 5}">${label}</text>`;
+    }).join("");
+    return `
+        <path class="inline-stock-chart-grid" d="${grid}"></path>
+        <line class="inline-stock-chart-axis" x1="${plotLeft}" y1="${plotBottom}" x2="${plotRight}" y2="${plotBottom}"></line>
+        ${priceLabels}
+        ${dateLabels}
+    `;
+}
+
+function renderLineChartSvg(points, chartPeriod) {
+    const width = 420;
+    const height = 130;
+    const plotLeft = 8;
+    const plotRight = 342;
+    const plotTop = 8;
+    const plotBottom = 104;
+    const rawChartPoints = points
+        .map((point) => ({ time: point.time, close: Number(point.close) }))
+        .filter((point) => Number.isFinite(point.close));
+    const chartPoints = chartPeriod === "d" ? getRecentSixHourPoints(rawChartPoints) : rawChartPoints;
+    if (chartPoints.length < 2) return "";
+    const { minValue, maxValue } = getChartScale(chartPoints.map((point) => point.close));
+    const latestTime = Number(chartPoints[chartPoints.length - 1].time);
+    const startTime = chartPeriod === "d" ? latestTime - 6 * 60 * 60 : Number(chartPoints[0].time);
+    const endTime = chartPeriod === "d" ? latestTime : Number(chartPoints[chartPoints.length - 1].time);
+    const step = (plotRight - plotLeft) / Math.max(chartPoints.length - 1, 1);
+    const path = chartPoints.map((point, index) => {
+        const x = chartPeriod === "d"
+            ? getTimeScaleX(point.time, startTime, endTime, plotLeft, plotRight)
+            : plotLeft + index * step;
+        const y = scaleChartY(point.close, minValue, maxValue, plotTop, plotBottom);
+        return `${index ? "L" : "M"}${x.toFixed(1)} ${y.toFixed(1)}`;
+    }).join(" ");
+    const rising = chartPoints[chartPoints.length - 1].close >= chartPoints[0].close;
+    const stroke = rising ? "#dc2626" : "#2563eb";
+    return `
+        <svg class="inline-stock-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="chart">
+            ${renderChartAxes(chartPoints, minValue, maxValue, width, height, plotLeft, plotRight, plotTop, plotBottom, chartPeriod, "stock")}
+            <path class="inline-stock-chart-line" d="${path}" stroke="${stroke}"></path>
+        </svg>
+    `;
+}
+
+function renderCandleChartSvg(points, chartPeriod) {
+    const width = 420;
+    const height = 130;
+    const plotLeft = 8;
+    const plotRight = 342;
+    const plotTop = 8;
+    const plotBottom = 104;
+    const candles = points
+        .map((point) => ({
+            time: point.time,
+            open: Number(point.open),
+            high: Number(point.high),
+            low: Number(point.low),
+            close: Number(point.close),
+        }))
+        .filter((point) => [point.open, point.high, point.low, point.close].every(Number.isFinite));
+    if (candles.length < 2) return "";
+    const values = candles.flatMap((point) => [point.high, point.low]);
+    const { minValue, maxValue } = getChartScale(values);
+    const step = (plotRight - plotLeft) / candles.length;
+    const bodyWidth = Math.max(2, Math.min(8, step * 0.62));
+    const shapes = candles.map((point, index) => {
+        const x = plotLeft + index * step + step / 2;
+        const highY = scaleChartY(point.high, minValue, maxValue, plotTop, plotBottom);
+        const lowY = scaleChartY(point.low, minValue, maxValue, plotTop, plotBottom);
+        const openY = scaleChartY(point.open, minValue, maxValue, plotTop, plotBottom);
+        const closeY = scaleChartY(point.close, minValue, maxValue, plotTop, plotBottom);
+        const top = Math.min(openY, closeY);
+        const bodyHeight = Math.max(1, Math.abs(closeY - openY));
+        const color = point.close >= point.open ? "#dc2626" : "#2563eb";
+        return `<line x1="${x.toFixed(1)}" y1="${highY.toFixed(1)}" x2="${x.toFixed(1)}" y2="${lowY.toFixed(1)}" stroke="${color}" stroke-width="1"></line><rect x="${(x - bodyWidth / 2).toFixed(1)}" y="${top.toFixed(1)}" width="${bodyWidth.toFixed(1)}" height="${bodyHeight.toFixed(1)}" fill="${color}"></rect>`;
+    }).join("");
+    return `
+        <svg class="inline-stock-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="chart">
+            ${renderChartAxes(candles, minValue, maxValue, width, height, plotLeft, plotRight, plotTop, plotBottom, chartPeriod, "candle")}
+            ${shapes}
+        </svg>
+    `;
+}
+
+function renderInlineChartSvg(payload) {
+    const points = Array.isArray(payload?.points) ? payload.points : [];
+    if (payload?.type === "candle") return renderCandleChartSvg(points, payload?.period);
+    return renderLineChartSvg(points, payload?.period);
+}
+
+function mountInlineChart(thumb, stock, column) {
+    thumb.classList.add("inline-stock-chart-thumb");
+    thumb.textContent = "...";
+    getInlineChartData(stock, column)
+        .then((payload) => {
+            const svg = renderInlineChartSvg(payload);
+            thumb.innerHTML = svg || `<span class="inline-stock-chart-empty">-</span>`;
+            if (svg) {
+                const chartName = `${stock.name || stock.ticker || "stock"} ${column.label}`;
+                thumb.addEventListener("click", (event) => openInlineChartPopout(event, svg, chartName));
+            }
+        })
+        .catch(() => {
+            thumb.innerHTML = `<span class="inline-stock-chart-empty">-</span>`;
+        });
 }
 
 function clampEntryImagePopoutPosition(popout) {
@@ -433,13 +742,13 @@ function bringEntryImagePopoutToFront(popoutOrId) {
 
 function setEntryImagePopoutScale(id, delta) {
     const popout = document.getElementById(id);
-    const image = popout?.querySelector(".entry-image-popout-body img");
-    if (!popout || !image) return;
+    const media = popout?.querySelector(".entry-image-popout-body img, .entry-image-popout-body svg");
+    if (!popout || !media) return;
     bringEntryImagePopoutToFront(popout);
     const current = Number(popout.dataset.scale || "1") || 1;
     const next = Math.min(4, Math.max(0.25, Math.round((current + delta) * 100) / 100));
     popout.dataset.scale = String(next);
-    image.style.width = `${next * 100}%`;
+    media.style.width = `${next * 100}%`;
     popout.classList.toggle("is-zoomed", next > 1);
 }
 
@@ -528,6 +837,45 @@ function openChartImagePopout(event, imageSrc, imageName = "chart image") {
     const top = sourceRect ? sourceRect.bottom + 8 : 80;
     popout.style.left = `${left}px`;
     popout.style.top = `${top}px`;
+    clampEntryImagePopoutPosition(popout);
+}
+
+function openInlineChartPopout(event, svgMarkup, chartName = "chart") {
+    if (!svgMarkup) return;
+    event?.stopPropagation?.();
+    const popoutKey = `${chartName}|${svgMarkup.length}`;
+    const existing = Array.from(document.querySelectorAll(".entry-image-popout"))
+        .find((item) => item.dataset.inlineChart === popoutKey);
+    if (existing) {
+        bringEntryImagePopoutToFront(existing);
+        clampEntryImagePopoutPosition(existing);
+        return;
+    }
+
+    const id = `entryImagePopout-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const popout = document.createElement("div");
+    popout.id = id;
+    popout.className = "entry-image-popout inline-chart-popout";
+    popout.dataset.scale = "1";
+    popout.dataset.inlineChart = popoutKey;
+    popout.innerHTML = `
+        <div class="entry-image-popout-toolbar">
+            <button class="entry-image-popout-drag" type="button" onpointerdown="startEntryImagePopoutDrag(event, '${id}')" title="창 이동">::</button>
+            <button class="entry-image-popout-btn" type="button" onclick="setEntryImagePopoutScale('${id}', 0.15)" title="확대">+</button>
+            <button class="entry-image-popout-btn" type="button" onclick="setEntryImagePopoutScale('${id}', -0.15)" title="축소">-</button>
+            <button class="entry-image-popout-btn" type="button" onclick="closeEntryImagePopout('${id}')" title="닫기">x</button>
+        </div>
+        <div class="entry-image-popout-body" onpointerdown="startEntryImagePopoutPan(event, '${id}')">
+            <div class="entry-image-popout-title">${escapeHtml(chartName)}</div>
+            ${svgMarkup}
+        </div>
+    `;
+    document.body.appendChild(popout);
+    popout.addEventListener("pointerdown", () => bringEntryImagePopoutToFront(popout), { capture: true });
+    bringEntryImagePopoutToFront(popout);
+    const sourceRect = event?.target?.getBoundingClientRect?.();
+    popout.style.left = `${sourceRect ? sourceRect.left + 16 : 80}px`;
+    popout.style.top = `${sourceRect ? sourceRect.bottom + 8 : 80}px`;
     clampEntryImagePopoutPosition(popout);
 }
 
@@ -878,14 +1226,19 @@ document.addEventListener("pointercancel", finishColumnResize);
 function renderStocks() {
     const activeTab = getActiveTab();
     stockListEl.innerHTML = "";
+    activeTab.stocks = activeTab.stocks.map((stock) => (
+        stock._rowId ? stock : { ...stock, _rowId: createStockRowId() }
+    ));
 
     emptyStateEl.classList.toggle("hidden", activeTab.stocks.length > 0);
 
     activeTab.stocks.forEach((stock) => {
+        const stockRowId = stock._rowId;
         const row = document.createElement("div");
         row.className = "stock-row";
         row.draggable = true;
         row.dataset.ticker = stock.ticker;
+        row.dataset.stockRowId = stockRowId;
 
         const dragHandle = document.createElement("button");
         dragHandle.className = "drag-handle";
@@ -930,23 +1283,42 @@ function renderStocks() {
                     showStockContextMenu(event.clientX, event.clientY);
                 });
             } else if (column.chartType) {
-                const imageSrc = getChartImageUrl(stock, column);
                 const imageName = `${stock.name || stock.ticker || "stock"} ${column.label}`;
                 const thumb = document.createElement("span");
                 thumb.className = "voca-entry-thumb stock-chart-thumb";
-                const image = document.createElement("img");
-                image.className = "stock-chart-image";
-                image.src = imageSrc;
-                image.alt = imageName;
-                image.loading = "lazy";
-                image.addEventListener("click", (event) => openChartImagePopout(event, imageSrc, imageName));
-
-                thumb.appendChild(image);
+                if (shouldRenderInlineChart(stock)) {
+                    thumb.title = imageName;
+                    mountInlineChart(thumb, stock, column);
+                } else {
+                    const imageSrc = getChartImageUrl(stock, column);
+                    const image = document.createElement("img");
+                    image.className = "stock-chart-image";
+                    image.src = imageSrc;
+                    image.alt = imageName;
+                    image.loading = "lazy";
+                    image.addEventListener("click", (event) => openChartImagePopout(event, imageSrc, imageName));
+                    thumb.appendChild(image);
+                }
                 cell.appendChild(thumb);
             } else {
                 cell.textContent = column.key === "average_price"
                     ? formatAveragePrice(stock.average_price)
                     : stock[column.key] || "-";
+            }
+
+            if (column.key === "price" && getColumnGroup().key === "chart") {
+                const priceLinkUrl = getPriceLinkUrl(stock);
+                if (priceLinkUrl) {
+                    cell.classList.add("yahoo-price-link");
+                    cell.title = "외부 사이트에서 확인";
+                    cell.tabIndex = 0;
+                    cell.addEventListener("click", () => openPriceLinkWindow(stock));
+                    cell.addEventListener("keydown", (event) => {
+                        if (event.key !== "Enter" && event.key !== " ") return;
+                        event.preventDefault();
+                        openPriceLinkWindow(stock);
+                    });
+                }
             }
 
             if (column.key === "average_price") {
@@ -968,46 +1340,46 @@ function renderStocks() {
         deleteButton.type = "button";
         deleteButton.title = "삭제";
         deleteButton.textContent = "x";
-        deleteButton.addEventListener("click", () => removeStock(stock.ticker));
+        deleteButton.addEventListener("click", () => removeStock(stockRowId));
         row.appendChild(deleteButton);
 
         dragHandle.addEventListener("pointerdown", () => {
-            dragHandleArmedTicker = stock.ticker;
+            dragHandleArmedStockRowId = stockRowId;
         });
 
         dragHandle.addEventListener("pointerup", () => {
-            dragHandleArmedTicker = null;
+            dragHandleArmedStockRowId = null;
         });
 
         dragHandle.addEventListener("dragstart", (event) => {
-            draggedTicker = stock.ticker;
+            draggedStockRowId = stockRowId;
             row.classList.add("dragging");
             event.dataTransfer.effectAllowed = "move";
-            event.dataTransfer.setData("text/plain", stock.ticker);
+            event.dataTransfer.setData("text/plain", stockRowId);
         });
 
         row.addEventListener("dragstart", (event) => {
-            if (dragHandleArmedTicker !== stock.ticker && !event.target.closest(".drag-handle")) {
+            if (dragHandleArmedStockRowId !== stockRowId && !event.target.closest(".drag-handle")) {
                 event.preventDefault();
                 return;
             }
-            draggedTicker = stock.ticker;
+            draggedStockRowId = stockRowId;
             row.classList.add("dragging");
             event.dataTransfer.effectAllowed = "move";
-            event.dataTransfer.setData("text/plain", stock.ticker);
+            event.dataTransfer.setData("text/plain", stockRowId);
         });
 
         row.addEventListener("dragend", () => {
-            draggedTicker = null;
-            dragHandleArmedTicker = null;
+            draggedStockRowId = null;
+            dragHandleArmedStockRowId = null;
             row.classList.remove("dragging");
             saveState();
         });
 
         row.addEventListener("dragover", (event) => {
-            if (!draggedTicker) return;
+            if (!draggedStockRowId) return;
             event.preventDefault();
-            reorderStock(stock.ticker);
+            reorderStock(stockRowId);
         });
 
         stockListEl.appendChild(row);
@@ -1518,10 +1890,7 @@ function escapeHtml(value) {
 
 function addStock(stock) {
     const activeTab = getActiveTab();
-    const exists = activeTab.stocks.some((item) => item.ticker === stock.ticker);
-    if (!exists) {
-        activeTab.stocks.unshift({ ...stock });
-    }
+    activeTab.stocks.unshift({ ...stock, _rowId: createStockRowId() });
 
     stockInput.value = "";
     activeSuggestionIndex = -1;
@@ -1529,18 +1898,18 @@ function addStock(stock) {
     render();
 }
 
-function removeStock(ticker) {
+function removeStock(stockRowId) {
     const activeTab = getActiveTab();
-    activeTab.stocks = activeTab.stocks.filter((stock) => stock.ticker !== ticker);
+    activeTab.stocks = activeTab.stocks.filter((stock) => stock._rowId !== stockRowId);
     render();
 }
 
-function reorderStock(targetTicker) {
-    if (!draggedTicker || draggedTicker === targetTicker) return;
+function reorderStock(targetStockRowId) {
+    if (!draggedStockRowId || draggedStockRowId === targetStockRowId) return;
 
     const activeTab = getActiveTab();
-    const fromIndex = activeTab.stocks.findIndex((stock) => stock.ticker === draggedTicker);
-    const toIndex = activeTab.stocks.findIndex((stock) => stock.ticker === targetTicker);
+    const fromIndex = activeTab.stocks.findIndex((stock) => stock._rowId === draggedStockRowId);
+    const toIndex = activeTab.stocks.findIndex((stock) => stock._rowId === targetStockRowId);
 
     if (fromIndex < 0 || toIndex < 0) return;
 
@@ -1560,40 +1929,47 @@ async function updateActiveStocks() {
     const fields = getVisibleColumns()
         .map((column) => column.key)
         .filter((key) => FETCHABLE_COLUMN_KEYS.has(key));
-    if (fields.length === 0) return;
+    const hasVisibleInlineCharts = getVisibleColumns().some((column) => column.chartType)
+        && activeTab.stocks.some((stock) => shouldRenderInlineChart(stock));
+    if (fields.length === 0 && !hasVisibleInlineCharts) return;
 
     isUpdating = true;
     updateButton.disabled = true;
     updateButton.textContent = "업데이트 중...";
 
     try {
-        const response = await fetch("/api/stocks/update", {
+        if (fields.length) {
+            const response = await fetch("/api/stocks/update", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ tickers, fields }),
-        });
+            });
 
-        if (!response.ok) throw new Error("서버 응답 오류");
+            if (!response.ok) throw new Error("서버 응답 오류");
 
-        const data = await response.json();
-        activeTab.stocks = activeTab.stocks.map((stock) => ({
-            ...stock,
-            ...(data.stocks && data.stocks[stock.ticker] ? {
-                ...Object.fromEntries(fields.map((field) => [field, "-"])),
-                ...data.stocks[stock.ticker],
-            } : {
-                ...Object.fromEntries(fields.map((field) => [field, "-"])),
-                ...(fields.includes("price") ? { price: "조회 실패" } : {}),
-            }),
-        }));
+            const data = await response.json();
+            activeTab.stocks = activeTab.stocks.map((stock) => ({
+                ...stock,
+                ...(data.stocks && data.stocks[stock.ticker] ? {
+                    ...Object.fromEntries(fields.map((field) => [field, "-"])),
+                    ...data.stocks[stock.ticker],
+                } : {
+                    ...Object.fromEntries(fields.map((field) => [field, "-"])),
+                    ...(fields.includes("price") ? { price: "조회 실패" } : {}),
+                }),
+            }));
+        }
     } catch (error) {
         console.warn("업데이트 실패", error);
-        activeTab.stocks = activeTab.stocks.map((stock) => ({
-            ...stock,
-            ...Object.fromEntries(fields.map((field) => [field, "-"])),
-            ...(fields.includes("price") ? { price: "조회 실패" } : {}),
-        }));
+        if (fields.length) {
+            activeTab.stocks = activeTab.stocks.map((stock) => ({
+                ...stock,
+                ...Object.fromEntries(fields.map((field) => [field, "-"])),
+                ...(fields.includes("price") ? { price: "조회 실패" } : {}),
+            }));
+        }
     } finally {
+        clearInlineChartCache(tickers);
         isUpdating = false;
         updateButton.disabled = false;
         updateButton.textContent = "업데이트";

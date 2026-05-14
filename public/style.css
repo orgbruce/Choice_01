@@ -643,6 +643,18 @@ body.layout-hide-navigation .top-horizontal-scroll {
 
 .average-price-cell { cursor: pointer; }
 .average-price-cell:hover, .average-price-cell:focus { border-radius: 6px; background: #f1f5f9; outline: none; }
+.yahoo-price-link {
+    cursor: pointer;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.yahoo-price-link:hover,
+.yahoo-price-link:focus {
+    border-radius: 6px;
+    background: #f1f5f9;
+    outline: none;
+}
 .positive { color: var(--red); font-weight: 800; }
 .negative { color: var(--blue); font-weight: 800; }
 
@@ -691,6 +703,64 @@ body.layout-hide-navigation .top-horizontal-scroll {
     background: #fff;
     border-radius: 6px;
     cursor: zoom-in;
+}
+
+.inline-stock-chart-thumb {
+    align-items: center;
+    justify-content: center;
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.inline-stock-chart {
+    display: block;
+    width: 100%;
+    height: 100%;
+    background: #fff;
+    border-radius: 6px;
+    cursor: zoom-in;
+}
+
+.inline-stock-chart-grid {
+    fill: none;
+    stroke: #e5e7eb;
+    stroke-width: 1;
+}
+
+.inline-stock-chart-line {
+    fill: none;
+    stroke-width: 1;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.inline-stock-chart-axis {
+    stroke: #e5e7eb;
+    stroke-width: 1;
+}
+
+.inline-stock-chart-price,
+.inline-stock-chart-date {
+    fill: #777;
+    font-family: Arial, sans-serif;
+    font-size: 7.5px;
+    font-weight: 500;
+}
+
+.inline-stock-chart-price {
+    text-anchor: end;
+}
+
+.inline-stock-chart-date {
+    text-anchor: middle;
+}
+
+.inline-stock-chart-empty {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
 }
 
 .entry-image-popout {
@@ -781,6 +851,27 @@ body.layout-hide-navigation .top-horizontal-scroll {
     width: 100%;
     height: auto;
     transform-origin: top left;
+}
+
+.entry-image-popout-body svg {
+    display: block;
+    width: 100%;
+    height: auto;
+    min-height: 320px;
+    transform-origin: top left;
+}
+
+.inline-chart-popout {
+    width: min(82vw, 900px);
+}
+
+.inline-chart-popout .entry-image-popout-body {
+    padding: 12px;
+}
+
+.inline-chart-popout .inline-stock-chart-price,
+.inline-chart-popout .inline-stock-chart-date {
+    font-size: 8.5px;
 }
 
 .context-menu {

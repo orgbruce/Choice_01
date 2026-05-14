@@ -26,8 +26,6 @@
     "chart_d",
     "chart_candle_d",
     "chart_candle_w",
-    "chart_m",
-    "chart_m3",
     "chart_y",
     "chart_y3",
     "chart_y10"
@@ -69,8 +67,6 @@
       "chart_d",
       "chart_candle_d",
       "chart_candle_w",
-      "chart_m",
-      "chart_m3",
       "chart_y",
       "chart_y3",
       "chart_y10"
@@ -113,8 +109,6 @@
       "chart_d",
       "chart_candle_d",
       "chart_candle_w",
-      "chart_m",
-      "chart_m3",
       "chart_y",
       "chart_y3",
       "chart_y10"
@@ -132,16 +126,14 @@
     "fundamental": {},
     "performance": {},
     "chart": {
-      "chart_candle_d": 243,
-      "chart_candle_w": 183,
-      "chart_d": 186,
-      "chart_m": 182,
-      "chart_m3": 179,
+      "chart_candle_d": 296,
+      "chart_candle_w": 245,
+      "chart_d": 194,
       "chart_y": 147,
       "chart_y10": 187,
       "chart_y3": 198,
-      "name": 136,
-      "price": 126,
+      "name": 122,
+      "price": 142,
       "ticker": 110
     }
   },

@@ -11,6 +11,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable
 from urllib.error import URLError
+from urllib.parse import quote as url_quote
 from urllib.request import Request, urlopen
 
 from flask import Flask, jsonify, redirect, render_template, request, session, url_for
@@ -75,6 +76,7 @@ PERFORMANCE_FIELDS = {
     "performance_5y",
 }
 FETCHABLE_FIELDS = QUOTE_FIELDS | FUNDAMENTAL_FIELDS | PERFORMANCE_FIELDS
+CHART_DATA_TICKER_ALIASES = {}
 
 
 def load_users() -> dict[str, dict[str, str]]:
@@ -891,6 +893,149 @@ def fetch_stock_snapshot(ticker: str, requested_fields: set[str]) -> dict[str, s
         yahoo_snapshot,
     )
     return _complete_snapshot(snapshot, requested_fields) if snapshot is not None else _failed_snapshot(requested_fields)
+
+
+def _yahoo_chart_query(ticker: str, chart_period: str, chart_type: str) -> tuple[str, str]:
+    if chart_period == "d" and chart_type == "stock":
+        return "1d", "5m"
+    if chart_period == "d":
+        return "6mo", "1d"
+    if chart_period == "w":
+        return "2y", "1d"
+    if chart_period == "y3":
+        return "3y", "1wk"
+    if chart_period == "y10":
+        return "10y", "1mo"
+    return "1y", "1d"
+
+
+def _aggregate_weekly_points(points: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    weeks: list[dict[str, Any]] = []
+    current_key = None
+    current_week: dict[str, Any] | None = None
+
+    for point in sorted(points, key=lambda item: item["time"]):
+        week_key = datetime.fromtimestamp(point["time"]).isocalendar()[:2]
+        if week_key != current_key:
+            if current_week is not None:
+                weeks.append(current_week)
+
+            current_key = week_key
+            current_week = {
+                "time": point["time"],
+                "open": point["open"],
+                "high": point["high"],
+                "low": point["low"],
+                "close": point["close"],
+            }
+            continue
+
+        if current_week is None:
+            continue
+
+        current_week["time"] = point["time"]
+        current_week["high"] = max(current_week["high"], point["high"])
+        current_week["low"] = min(current_week["low"], point["low"])
+        current_week["close"] = point["close"]
+
+    if current_week is not None:
+        weeks.append(current_week)
+
+    return weeks
+
+
+def fetch_chart_data(ticker: str, chart_period: str, chart_type: str) -> dict[str, Any] | None:
+    clean_ticker = ticker.strip()
+    if not clean_ticker:
+        return None
+
+    period, interval = _yahoo_chart_query(clean_ticker, chart_period, chart_type)
+    candidate_tickers = [
+        CHART_DATA_TICKER_ALIASES.get(clean_ticker.upper(), clean_ticker),
+        clean_ticker,
+    ]
+    seen_candidates = set()
+    points = []
+    chart_ticker = clean_ticker
+
+    for candidate_ticker in candidate_tickers:
+        if candidate_ticker in seen_candidates:
+            continue
+
+        seen_candidates.add(candidate_ticker)
+        url = f"https://query1.finance.yahoo.com/v8/finance/chart/{url_quote(candidate_ticker, safe='')}?range={period}&interval={interval}"
+        req = Request(
+            url,
+            headers={
+                "User-Agent": "Mozilla/5.0 Choice/1.0",
+                "Accept": "application/json",
+            },
+        )
+
+        try:
+            with urlopen(req, timeout=8) as response:
+                payload = json.loads(response.read().decode("utf-8"))
+            result = payload["chart"]["result"][0]
+            quote = result["indicators"]["quote"][0]
+            timestamps = result.get("timestamp", [])
+        except (OSError, URLError, json.JSONDecodeError, KeyError, IndexError, TypeError):
+            continue
+
+        candidate_points = []
+        for index, timestamp in enumerate(timestamps):
+            close_value = _value_at_index(quote.get("close", []), index)
+            if close_value is None:
+                continue
+
+            open_value = _value_at_index(quote.get("open", []), index)
+            high_value = _value_at_index(quote.get("high", []), index)
+            low_value = _value_at_index(quote.get("low", []), index)
+            candidate_points.append(
+                {
+                    "time": timestamp,
+                    "open": open_value if open_value is not None else close_value,
+                    "high": high_value if high_value is not None else close_value,
+                    "low": low_value if low_value is not None else close_value,
+                    "close": close_value,
+                }
+            )
+
+        if len(candidate_points) >= 2:
+            points = candidate_points
+            chart_ticker = candidate_ticker
+            break
+
+    if len(points) < 2:
+        return None
+
+    if chart_period == "w" and chart_type == "candle":
+        points = _aggregate_weekly_points(points)
+
+    if chart_type == "candle":
+        points = points[-120:]
+
+    return {
+        "ticker": clean_ticker,
+        "sourceTicker": chart_ticker,
+        "period": chart_period,
+        "type": chart_type,
+        "points": points,
+    }
+
+
+@app.get("/api/chart-data")
+@login_required
+def chart_data():
+    ticker = request.args.get("ticker", "")
+    chart_period = request.args.get("period", "d")
+    chart_type = request.args.get("type", "stock")
+    if chart_period not in {"d", "w", "y", "y3", "y10"} or chart_type not in {"stock", "candle"}:
+        return jsonify({"error": "invalid chart parameters"}), 400
+
+    payload = fetch_chart_data(ticker, chart_period, chart_type)
+    if payload is None:
+        return jsonify({"error": "chart data unavailable"}), 502
+    return jsonify(payload)
 
 
 def get_page_title() -> str:
