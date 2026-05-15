@@ -1,6 +1,7 @@
 let STOCKS = Array.isArray(window.CHOICE_STOCKS) ? window.CHOICE_STOCKS : [];
 const STORAGE_KEY = "choice.state.v1";
-const COLUMN_SCHEMA_VERSION = 7;
+const STOCK_PRICES_URL = "/public/stock_prices.json";
+const COLUMN_SCHEMA_VERSION = 12;
 const inlineChartCache = new Map();
 const PRICE_LINK_OVERRIDES = new Map([
     ["^GSPC", "https://finviz.com/map?t=sec"],
@@ -53,17 +54,21 @@ const YAHOO_SVG_CHART_TICKERS = new Set([
 ]);
 
 const COLUMN_DEFS = [
-    { key: "name", label: "종목명", className: "stock-name", width: "minmax(140px, 1.4fr)" },
-    { key: "ticker", label: "티커", width: "minmax(82px, 0.9fr)" },
-    { key: "price", label: "현재가", width: "minmax(74px, 0.85fr)" },
-    { key: "average_price", label: "평단가", className: "average-price-cell", width: "minmax(78px, 0.85fr)" },
-    { key: "change_amount", label: "변동", width: "minmax(74px, 0.85fr)", valueClass: getChangeClass },
-    { key: "change", label: "오늘변동률", width: "minmax(84px, 0.9fr)", valueClass: getChangeClass },
-    { key: "volume", label: "거래량", width: "minmax(74px, 0.85fr)" },
-    { key: "close", label: "종가", width: "minmax(74px, 0.85fr)" },
-    { key: "open", label: "시가", width: "minmax(74px, 0.85fr)" },
-    { key: "high", label: "고가", width: "minmax(74px, 0.85fr)" },
-    { key: "low", label: "저가", width: "minmax(74px, 0.85fr)" },
+    { key: "name", label: "종목명", className: "stock-name", width: "var(--stock-name-column-width)" },
+    { key: "ticker", label: "티커", width: "92px" },
+    { key: "price", label: "현재가", width: "92px" },
+    { key: "average_price", label: "평단가", className: "average-price-cell", width: "92px" },
+    { key: "quantity", label: "수량", className: "average-price-cell", width: "76px" },
+    { key: "holding_amount", label: "매입금액", width: "108px" },
+    { key: "profit_rate", label: "수익%", width: "92px", valueClass: getChangeClass },
+    { key: "profit_amount", label: "손익", width: "108px", valueClass: getChangeClass },
+    { key: "change_amount", label: "변동", width: "96px", valueClass: getChangeClass },
+    { key: "change", label: "오늘변동률", width: "104px", valueClass: getChangeClass },
+    { key: "volume", label: "거래량", width: "112px" },
+    { key: "close", label: "종가", width: "92px" },
+    { key: "open", label: "시가", width: "92px" },
+    { key: "high", label: "고가", width: "92px" },
+    { key: "low", label: "저가", width: "92px" },
     { key: "per", label: "PER", width: "minmax(74px, 0.85fr)" },
     { key: "roic", label: "ROIC", width: "minmax(74px, 0.85fr)" },
     { key: "operating_income_growth", label: "영업이익증가율", width: "minmax(110px, 1fr)" },
@@ -75,19 +80,19 @@ const COLUMN_DEFS = [
     { key: "performance_1y", label: "1Y", className: "performance-cell", width: "minmax(48px, 0.75fr)", valueClass: getChangeClass },
     { key: "performance_3y", label: "3Y", className: "performance-cell", width: "minmax(48px, 0.75fr)", valueClass: getChangeClass },
     { key: "performance_5y", label: "5Y", className: "performance-cell", width: "minmax(48px, 0.75fr)", valueClass: getChangeClass },
-    { key: "chart_d", label: "1일", className: "chart-cell", width: "minmax(220px, 1.8fr)", chartType: "stock", chartPeriod: "d" },
-    { key: "chart_candle_d", label: "일봉", className: "chart-cell", width: "minmax(220px, 1.8fr)", chartType: "candle", chartPeriod: "d" },
-    { key: "chart_candle_w", label: "주봉", className: "chart-cell", width: "minmax(220px, 1.8fr)", chartType: "candle", chartPeriod: "w" },
-    { key: "chart_y", label: "1년", className: "chart-cell", width: "minmax(220px, 1.8fr)", chartType: "stock", chartPeriod: "y" },
-    { key: "chart_y3", label: "3년", className: "chart-cell", width: "minmax(220px, 1.8fr)", chartType: "stock", chartPeriod: "y3" },
-    { key: "chart_y10", label: "10년", className: "chart-cell", width: "minmax(220px, 1.8fr)", chartType: "stock", chartPeriod: "y10" },
+    { key: "chart_d", label: "1일", className: "chart-cell", width: "220px", chartType: "stock", chartPeriod: "d" },
+    { key: "chart_candle_d", label: "일봉", className: "chart-cell", width: "220px", chartType: "candle", chartPeriod: "d" },
+    { key: "chart_candle_w", label: "주봉", className: "chart-cell", width: "220px", chartType: "candle", chartPeriod: "w" },
+    { key: "chart_y", label: "1년", className: "chart-cell", width: "220px", chartType: "stock", chartPeriod: "y" },
+    { key: "chart_y3", label: "3년", className: "chart-cell", width: "220px", chartType: "stock", chartPeriod: "y3" },
+    { key: "chart_y10", label: "10년", className: "chart-cell", width: "220px", chartType: "stock", chartPeriod: "y10" },
 ];
 
 const COLUMN_GROUPS = [
     {
         key: "price",
         label: "가격",
-        columns: ["name", "ticker", "price", "average_price", "change", "volume", "close", "open", "high", "low"],
+        columns: ["name", "ticker", "price", "average_price", "quantity", "holding_amount", "profit_rate", "profit_amount", "change", "volume", "close", "open", "high", "low"],
     },
     {
         key: "fundamental",
@@ -183,10 +188,12 @@ let state = loadState();
 let contextTabId = null;
 let contextStockTicker = null;
 let editingAveragePriceTicker = null;
+let editingNumberField = "average_price";
 let activeSuggestionIndex = -1;
 let draggedStockRowId = null;
 let dragHandleArmedStockRowId = null;
 let draggedColumnKey = null;
+let recentlyDraggedHeaderColumn = false;
 let draggedTabId = null;
 let resizingColumn = null;
 let isUpdating = false;
@@ -200,6 +207,13 @@ let pendingSuggestionPromise = null;
 let layoutToggleStage = 0;
 let saveStateTimer = null;
 let entryImagePopoutTopZ = 2147483000;
+const headerSortState = {
+    tabId: null,
+    groupKey: null,
+    columnKey: null,
+    direction: null,
+    baseOrder: [],
+};
 
 function createId() {
     return `tab-${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -320,6 +334,22 @@ function openPriceLinkWindow(stock) {
     );
 }
 
+function readLocalActiveTabId() {
+    try {
+        const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
+        return Array.isArray(saved?.tabs) ? saved.activeTabId : null;
+    } catch (error) {
+        return null;
+    }
+}
+
+function resolveInitialActiveTabId(saved) {
+    const localActiveTabId = readLocalActiveTabId();
+    const savedTabIds = new Set(saved.tabs.map((tab) => tab.id).filter(Boolean));
+    if (localActiveTabId && savedTabIds.has(localActiveTabId)) return localActiveTabId;
+    return saved.activeTabId || saved.tabs[0].id;
+}
+
 function loadState() {
     if (window.CHOICE_USER_STATE && Array.isArray(window.CHOICE_USER_STATE.tabs) && window.CHOICE_USER_STATE.tabs.length > 0) {
         const saved = window.CHOICE_USER_STATE;
@@ -330,7 +360,7 @@ function loadState() {
                 title: tab.title || `관심종목 ${index + 1}`,
                 stocks: Array.isArray(tab.stocks) ? tab.stocks : [],
             })),
-            activeTabId: saved.activeTabId || saved.tabs[0].id,
+            activeTabId: resolveInitialActiveTabId(saved),
             visibleColumns: shouldResetColumns ? [...DEFAULT_VISIBLE_COLUMNS] : normalizeVisibleColumns(saved.visibleColumns),
             activeColumnGroup: normalizeColumnGroup(saved.activeColumnGroup),
             groupVisibleColumns: shouldResetColumns ? createDefaultGroupVisibleColumns() : normalizeGroupVisibleColumns(saved.groupVisibleColumns),
@@ -350,7 +380,7 @@ function loadState() {
                     title: tab.title || `관심종목 ${index + 1}`,
                     stocks: Array.isArray(tab.stocks) ? tab.stocks : [],
                 })),
-                activeTabId: saved.activeTabId || saved.tabs[0].id,
+                activeTabId: resolveInitialActiveTabId(saved),
                 visibleColumns: shouldResetColumns ? [...DEFAULT_VISIBLE_COLUMNS] : normalizeVisibleColumns(saved.visibleColumns),
                 activeColumnGroup: normalizeColumnGroup(saved.activeColumnGroup),
                 groupVisibleColumns: shouldResetColumns ? createDefaultGroupVisibleColumns() : normalizeGroupVisibleColumns(saved.groupVisibleColumns),
@@ -439,6 +469,77 @@ function getActiveTab() {
         state.activeTabId = tab.id;
     }
     return tab;
+}
+
+function normalizeStockPriceSnapshot(snapshot) {
+    if (!snapshot || typeof snapshot !== "object" || Array.isArray(snapshot)) return null;
+
+    const fields = snapshot.fields && typeof snapshot.fields === "object" && !Array.isArray(snapshot.fields)
+        ? snapshot.fields
+        : snapshot;
+    const normalized = {};
+
+    FETCHABLE_COLUMN_KEYS.forEach((key) => {
+        if (Object.prototype.hasOwnProperty.call(fields, key)) {
+            normalized[key] = fields[key];
+        }
+    });
+
+    const updatedAt = snapshot.updated_at || fields.updated_at;
+    if (updatedAt) normalized.updated_at = String(updatedAt);
+
+    return Object.keys(normalized).length ? normalized : null;
+}
+
+function isNewerStockPriceSnapshot(snapshot, stock) {
+    if (!snapshot?.updated_at) return false;
+    if (!stock?.updated_at) return true;
+
+    const snapshotTime = Date.parse(snapshot.updated_at);
+    const stockTime = Date.parse(stock.updated_at);
+    if (!Number.isFinite(snapshotTime)) return false;
+    if (!Number.isFinite(stockTime)) return true;
+    return snapshotTime > stockTime;
+}
+
+async function applyLatestStockPricesFromFile() {
+    const activeTab = getActiveTab();
+    if (!activeTab.stocks.length) return false;
+
+    try {
+        const response = await fetch(STOCK_PRICES_URL, { cache: "no-store" });
+        if (!response.ok) return false;
+
+        const payload = await response.json();
+        if (!payload || typeof payload !== "object" || Array.isArray(payload)) return false;
+
+        let changed = false;
+        activeTab.stocks = activeTab.stocks.map((stock) => {
+            const ticker = String(stock.ticker || "").trim();
+            const snapshot = normalizeStockPriceSnapshot(payload[ticker]);
+            if (!snapshot || !isNewerStockPriceSnapshot(snapshot, stock)) return stock;
+
+            changed = true;
+            return {
+                ...stock,
+                ...snapshot,
+            };
+        });
+
+        if (changed) {
+            clearInlineChartCache(activeTab.stocks.map((stock) => stock.ticker));
+            render();
+        }
+
+        return changed;
+    } catch (error) {
+        console.warn("stock_prices.json load failed", error);
+        return false;
+    }
+}
+
+function refreshActiveTabFromStockPrices() {
+    applyLatestStockPricesFromFile();
 }
 
 function getChartMarket(stock) {
@@ -902,6 +1003,7 @@ function renderColumnGroupTabs() {
         button.addEventListener("click", () => {
             state.activeColumnGroup = group.key;
             render();
+            refreshActiveTabFromStockPrices();
         });
 
         columnGroupTabsEl.appendChild(button);
@@ -926,6 +1028,7 @@ function renderTabs() {
             state.activeTabId = tab.id;
             hideContextMenu();
             render();
+            refreshActiveTabFromStockPrices();
         });
 
         tabButton.addEventListener("contextmenu", (event) => {
@@ -1042,7 +1145,108 @@ function renderTableHead() {
 
     tableHeadEl.appendChild(document.createElement("span"));
     bindHeaderColumnDrag();
+    bindHeaderColumnSort();
     bindHeaderColumnResize();
+}
+
+function getStockSortValue(stock, columnKey) {
+    if (columnKey === "holding_amount") {
+        const averagePrice = parseStockNumber(stock.average_price);
+        const quantity = parseStockNumber(stock.quantity);
+        return averagePrice === null || quantity === null ? null : averagePrice * quantity;
+    }
+    if (columnKey === "profit_rate") {
+        const currentPrice = parseStockNumber(stock.price);
+        const averagePrice = parseStockNumber(stock.average_price);
+        return currentPrice === null || averagePrice === null || averagePrice === 0
+            ? null
+            : ((currentPrice - averagePrice) / averagePrice) * 100;
+    }
+    if (columnKey === "profit_amount") {
+        const currentPrice = parseStockNumber(stock.price);
+        const averagePrice = parseStockNumber(stock.average_price);
+        const quantity = parseStockNumber(stock.quantity);
+        return currentPrice === null || averagePrice === null || quantity === null
+            ? null
+            : (currentPrice - averagePrice) * quantity;
+    }
+
+    const value = stock[columnKey];
+    if (value === undefined || value === null || value === "" || value === "-") return null;
+    const numericValue = parseSortNumber(value);
+    return numericValue === null ? String(value || "") : numericValue;
+}
+
+function compareStockValues(a, b, columnKey, direction) {
+    const aValue = getStockSortValue(a, columnKey);
+    const bValue = getStockSortValue(b, columnKey);
+    const multiplier = direction === "asc" ? 1 : -1;
+
+    if (aValue === null && bValue === null) return 0;
+    if (aValue === null) return 1;
+    if (bValue === null) return -1;
+
+    if (typeof aValue === "number" && typeof bValue === "number") {
+        return (aValue - bValue) * multiplier;
+    }
+
+    return String(aValue).localeCompare(String(bValue), "ko-KR", { numeric: true }) * multiplier;
+}
+
+function restoreHeaderSortOrder(activeTab) {
+    const order = new Map(headerSortState.baseOrder.map((rowId, index) => [rowId, index]));
+    activeTab.stocks.sort((a, b) => {
+        const aIndex = order.has(a._rowId) ? order.get(a._rowId) : Number.MAX_SAFE_INTEGER;
+        const bIndex = order.has(b._rowId) ? order.get(b._rowId) : Number.MAX_SAFE_INTEGER;
+        return aIndex - bIndex;
+    });
+    headerSortState.tabId = null;
+    headerSortState.groupKey = null;
+    headerSortState.columnKey = null;
+    headerSortState.direction = null;
+    headerSortState.baseOrder = [];
+}
+
+function sortActiveStocksByColumn(columnKey) {
+    const activeTab = getActiveTab();
+    activeTab.stocks = activeTab.stocks.map((stock) => (
+        stock._rowId ? stock : { ...stock, _rowId: createStockRowId() }
+    ));
+
+    const groupKey = getColumnGroup().key;
+    const isSameSort = headerSortState.tabId === activeTab.id
+        && headerSortState.groupKey === groupKey
+        && headerSortState.columnKey === columnKey;
+
+    if (!isSameSort) {
+        headerSortState.tabId = activeTab.id;
+        headerSortState.groupKey = groupKey;
+        headerSortState.columnKey = columnKey;
+        headerSortState.direction = "desc";
+        headerSortState.baseOrder = activeTab.stocks.map((stock) => stock._rowId);
+    } else if (headerSortState.direction === "desc") {
+        headerSortState.direction = "asc";
+    } else {
+        restoreHeaderSortOrder(activeTab);
+        render();
+        return;
+    }
+
+    activeTab.stocks.sort((a, b) => compareStockValues(a, b, columnKey, headerSortState.direction));
+    render();
+}
+
+function bindHeaderColumnSort() {
+    tableHeadEl.querySelectorAll(".stock-header-cell").forEach((cell) => {
+        cell.addEventListener("click", (event) => {
+            if (event.target.closest(".column-resize-handle")) return;
+            if (recentlyDraggedHeaderColumn) return;
+
+            const columnKey = cell.dataset.columnKey;
+            if (!columnKey) return;
+            sortActiveStocksByColumn(columnKey);
+        });
+    });
 }
 
 function bindHeaderColumnDrag() {
@@ -1062,6 +1266,10 @@ function bindHeaderColumnDrag() {
 
         cell.addEventListener("dragend", () => {
             draggedColumnKey = null;
+            recentlyDraggedHeaderColumn = true;
+            window.setTimeout(() => {
+                recentlyDraggedHeaderColumn = false;
+            }, 0);
             tableHeadEl.querySelectorAll(".stock-header-cell").forEach((item) => {
                 item.classList.remove("dragging", "drop-target");
             });
@@ -1081,6 +1289,7 @@ function bindHeaderColumnDrag() {
 
         cell.addEventListener("drop", (event) => {
             event.preventDefault();
+            recentlyDraggedHeaderColumn = true;
             moveVisibleColumn(draggedColumnKey, cell.dataset.columnKey);
         });
     });
@@ -1184,13 +1393,17 @@ function getFixedColumnMaskWidth() {
 }
 
 function updateFixedColumnMaskWidth() {
-    const firstRow = stockListEl.querySelector(".stock-row") || tableHeadEl;
-    const nameCell = firstRow.querySelector(".stock-name") || tableHeadEl.querySelector('[data-column-key="name"]');
-    if (!nameCell || !stockTableScrollEl) return;
+    const nameCells = [
+        tableHeadEl.querySelector('[data-column-key="name"]'),
+        ...stockListEl.querySelectorAll(".stock-name"),
+    ].filter(Boolean);
+    if (!nameCells.length || !stockTableScrollEl) return;
 
     const tableRect = stockTableScrollEl.getBoundingClientRect();
-    const nameRect = nameCell.getBoundingClientRect();
-    const width = Math.max(0, Math.ceil(nameRect.right - tableRect.left));
+    const width = Math.max(
+        0,
+        ...nameCells.map((nameCell) => Math.ceil(nameCell.getBoundingClientRect().right - tableRect.left)),
+    );
     document.documentElement.style.setProperty("--fixed-stock-columns-width", `${width}px`);
 }
 
@@ -1198,7 +1411,8 @@ document.addEventListener("pointermove", (event) => {
     if (!resizingColumn || resizingColumn.pointerId !== event.pointerId) return;
 
     const isPerformanceColumn = resizingColumn.columnKey?.startsWith("performance_");
-    const minWidth = isPerformanceColumn ? 44 : 72;
+    const isChartColumn = Boolean(getColumnByKey(resizingColumn.columnKey)?.chartType);
+    const minWidth = isChartColumn ? 180 : (isPerformanceColumn ? 44 : 72);
     const nextWidth = Math.max(minWidth, Math.round(resizingColumn.startWidth + event.clientX - resizingColumn.startX));
     state.groupColumnWidths[resizingColumn.groupKey][resizingColumn.columnKey] = nextWidth;
     applyLiveColumnWidths();
@@ -1250,7 +1464,10 @@ function renderStocks() {
 
         getVisibleColumns().forEach((column) => {
             const cell = document.createElement("span");
-            const valueClass = typeof column.valueClass === "function" ? column.valueClass(stock[column.key]) : "";
+            const classValue = column.key === "profit_rate"
+                ? formatProfitRate(stock)
+                : (column.key === "profit_amount" ? formatProfitAmount(stock) : stock[column.key]);
+            const valueClass = typeof column.valueClass === "function" ? column.valueClass(classValue) : "";
             cell.className = ["stock-cell", column.className || "", valueClass].filter(Boolean).join(" ");
             cell.dataset.label = column.label;
 
@@ -1301,9 +1518,17 @@ function renderStocks() {
                 }
                 cell.appendChild(thumb);
             } else {
-                cell.textContent = column.key === "average_price"
-                    ? formatAveragePrice(stock.average_price)
-                    : stock[column.key] || "-";
+                if (column.key === "average_price" || column.key === "quantity") {
+                    cell.textContent = formatAveragePrice(stock[column.key]);
+                } else if (column.key === "holding_amount") {
+                    cell.textContent = formatHoldingAmount(stock);
+                } else if (column.key === "profit_rate") {
+                    cell.textContent = formatProfitRate(stock);
+                } else if (column.key === "profit_amount") {
+                    cell.textContent = formatProfitAmount(stock);
+                } else {
+                    cell.textContent = stock[column.key] || "-";
+                }
             }
 
             if (column.key === "price" && getColumnGroup().key === "chart") {
@@ -1321,14 +1546,15 @@ function renderStocks() {
                 }
             }
 
-            if (column.key === "average_price") {
+            if (column.key === "average_price" || column.key === "quantity") {
                 cell.tabIndex = 0;
                 cell.title = "평단가 입력";
-                cell.addEventListener("click", () => openAveragePriceDialog(stock.ticker));
+                cell.title = column.key === "quantity" ? "수량 입력" : "평단가 입력";
+                cell.addEventListener("click", () => openAveragePriceDialog(stock.ticker, column.key));
                 cell.addEventListener("keydown", (event) => {
                     if (event.key !== "Enter" && event.key !== " ") return;
                     event.preventDefault();
-                    openAveragePriceDialog(stock.ticker);
+                    openAveragePriceDialog(stock.ticker, column.key);
                 });
             }
 
@@ -1388,8 +1614,9 @@ function renderStocks() {
 
 function getChangeClass(change) {
     if (!change || change === "-") return "";
-    if (change.startsWith("+")) return "positive";
-    if (change.startsWith("-")) return "negative";
+    const value = String(change).trim();
+    if (value.startsWith("+")) return "positive";
+    if (value.startsWith("-")) return "negative";
     return "";
 }
 
@@ -1559,6 +1786,23 @@ function normalizeNumberInput(value) {
         : integerDigits;
 }
 
+function parseStockNumber(value) {
+    const normalized = normalizeNumberInput(value);
+    if (!normalized || normalized === ".") return null;
+
+    const number = Number(normalized);
+    return Number.isFinite(number) ? number : null;
+}
+
+function parseSortNumber(value) {
+    if (value === undefined || value === null) return null;
+    const normalized = String(value).trim().replace(/,/g, "").replace(/%/g, "");
+    if (!normalized || normalized === "-") return null;
+
+    const number = Number(normalized);
+    return Number.isFinite(number) ? number : null;
+}
+
 function formatAveragePrice(value) {
     const normalized = normalizeNumberInput(value);
     if (!normalized || normalized === ".") return "-";
@@ -1581,17 +1825,55 @@ function formatAveragePriceInput(value) {
         : formattedInteger;
 }
 
+function formatHoldingAmount(stock) {
+    const averagePrice = parseStockNumber(stock.average_price);
+    const quantity = parseStockNumber(stock.quantity);
+    if (averagePrice === null || quantity === null) return "-";
+
+    return (averagePrice * quantity).toLocaleString("ko-KR", {
+        maximumFractionDigits: 2,
+    });
+}
+
+function formatProfitRate(stock) {
+    const currentPrice = parseStockNumber(stock.price);
+    const averagePrice = parseStockNumber(stock.average_price);
+    if (currentPrice === null || averagePrice === null || averagePrice === 0) return "-";
+
+    const profitRate = ((currentPrice - averagePrice) / averagePrice) * 100;
+    return `${profitRate >= 0 ? "+" : ""}${profitRate.toFixed(2)}%`;
+}
+
+function formatProfitAmount(stock) {
+    const currentPrice = parseStockNumber(stock.price);
+    const averagePrice = parseStockNumber(stock.average_price);
+    const quantity = parseStockNumber(stock.quantity);
+    if (currentPrice === null || averagePrice === null || quantity === null) return "-";
+
+    const profitAmount = (currentPrice - averagePrice) * quantity;
+    const formatted = Math.abs(profitAmount).toLocaleString("ko-KR", {
+        maximumFractionDigits: 2,
+    });
+    return `${profitAmount >= 0 ? "+" : "-"}${formatted}`;
+}
+
 function getEditingAveragePriceStock() {
     const activeTab = getActiveTab();
     return activeTab.stocks.find((stock) => stock.ticker === editingAveragePriceTicker);
 }
 
-function openAveragePriceDialog(ticker) {
+function openAveragePriceDialog(ticker, field = "average_price") {
     editingAveragePriceTicker = ticker;
+    editingNumberField = field;
     const stock = getEditingAveragePriceStock();
     if (!stock) return;
 
-    averagePriceInput.value = formatAveragePriceInput(stock.average_price);
+    const title = field === "quantity" ? "수량 입력" : "평단가 입력";
+    const label = field === "quantity" ? "수량" : "평단가";
+    const titleEl = document.getElementById("averagePriceDialogTitle");
+    if (titleEl) titleEl.textContent = title;
+    averagePriceInput.setAttribute("aria-label", label);
+    averagePriceInput.value = formatAveragePriceInput(stock[field]);
     averagePriceError.textContent = "";
     averagePriceDialogOverlay.classList.add("open");
     averagePriceDialogOverlay.setAttribute("aria-hidden", "false");
@@ -1611,13 +1893,14 @@ function closeAveragePriceDialog() {
     averagePriceInput.value = "";
     averagePriceError.textContent = "";
     editingAveragePriceTicker = null;
+    editingNumberField = "average_price";
 }
 
 function confirmAveragePriceDialog() {
     const stock = getEditingAveragePriceStock();
     if (!stock) return;
 
-    stock.average_price = normalizeNumberInput(averagePriceInput.value);
+    stock[editingNumberField] = normalizeNumberInput(averagePriceInput.value);
     closeAveragePriceDialog();
     render();
 }
@@ -1987,6 +2270,7 @@ renameTabButton.addEventListener("click", renameTab);
 writeMemoButton.addEventListener("click", openMemoDialog);
 updateButton.addEventListener("click", updateActiveStocks);
 layoutToggleButton?.addEventListener("click", toggleLayoutStage);
+window.addEventListener("load", refreshActiveTabFromStockPrices);
 columnSettingsButton.addEventListener("click", toggleColumnSettings);
 stockTableScrollEl.addEventListener("scroll", () => syncHorizontalScroll(stockTableScrollEl));
 topHorizontalScrollEl.addEventListener("scroll", () => syncHorizontalScroll(topHorizontalScrollEl));

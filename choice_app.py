@@ -36,12 +36,14 @@ app.secret_key = os.environ.get("CHOICE_SECRET_KEY", "choice-dev-secret-change-m
 app.config["TEMPLATES_AUTO_RELOAD"] = True
 MAX_UPDATE_WORKERS = 8
 STOCK_LIST_PATH = PUBLIC_DIR / "stock_list.json"
+STOCK_PRICES_PATH = PUBLIC_DIR / "stock_prices.json"
 USER_STORE_PATH = AUTH_DIR / "users.json"
 AVERAGE_PRICES_FILE = "average_prices.json"
+QUANTITIES_FILE = "quantities.json"
 MEMOS_FILE = "memos.json"
 LAYOUT_STATE_FILE = "layout_state.json"
 MYSTOCK_LIST_FILE = "mystock_list.json"
-PERSONAL_STOCK_FIELDS = {"average_price", "memo"}
+PERSONAL_STOCK_FIELDS = {"average_price", "quantity", "memo"}
 DEFAULT_STOCK_FIELDS = {
     "price": "-",
     "change_amount": "-",
@@ -128,6 +130,7 @@ def ensure_user_data_store(username: str) -> Path:
     user_dir = get_user_data_dir(username)
     defaults = {
         AVERAGE_PRICES_FILE: {},
+        QUANTITIES_FILE: {},
         MEMOS_FILE: {},
         LAYOUT_STATE_FILE: {},
         MYSTOCK_LIST_FILE: {"tabs": []},
@@ -149,6 +152,7 @@ def load_user_state(username: str | None) -> dict[str, Any] | None:
     watchlist = _read_json_file(user_dir / MYSTOCK_LIST_FILE, {"tabs": []})
     layout_state = _read_json_file(user_dir / LAYOUT_STATE_FILE, {})
     average_prices = _read_json_file(user_dir / AVERAGE_PRICES_FILE, {})
+    quantities = _read_json_file(user_dir / QUANTITIES_FILE, {})
     memos = _read_json_file(user_dir / MEMOS_FILE, {})
 
     if not isinstance(watchlist, dict) or not isinstance(watchlist.get("tabs"), list):
@@ -158,6 +162,8 @@ def load_user_state(username: str | None) -> dict[str, Any] | None:
         layout_state = {}
     if not isinstance(average_prices, dict):
         average_prices = {}
+    if not isinstance(quantities, dict):
+        quantities = {}
     if not isinstance(memos, dict):
         memos = {}
 
@@ -178,6 +184,7 @@ def load_user_state(username: str | None) -> dict[str, Any] | None:
             stocks.append({
                 **stock,
                 "average_price": average_prices.get(ticker, ""),
+                "quantity": quantities.get(ticker, ""),
                 "memo": memos.get(ticker, ""),
             })
 
@@ -201,6 +208,7 @@ def save_user_state(username: str, state_payload: dict[str, Any]) -> None:
     tabs_payload = state_payload.get("tabs", [])
     tabs = tabs_payload if isinstance(tabs_payload, list) else []
     average_prices: dict[str, Any] = {}
+    quantities: dict[str, Any] = {}
     memos: dict[str, Any] = {}
     watchlist_tabs: list[dict[str, Any]] = []
 
@@ -218,9 +226,12 @@ def save_user_state(username: str, state_payload: dict[str, Any]) -> None:
                 continue
 
             average_price = stock.get("average_price", "")
+            quantity = stock.get("quantity", "")
             memo = stock.get("memo", "")
             if average_price not in ("", None):
                 average_prices[ticker] = average_price
+            if quantity not in ("", None):
+                quantities[ticker] = quantity
             if memo not in ("", None):
                 memos[ticker] = memo
 
@@ -243,6 +254,7 @@ def save_user_state(username: str, state_payload: dict[str, Any]) -> None:
     }
 
     _write_json_file(user_dir / AVERAGE_PRICES_FILE, average_prices)
+    _write_json_file(user_dir / QUANTITIES_FILE, quantities)
     _write_json_file(user_dir / MEMOS_FILE, memos)
     _write_json_file(user_dir / LAYOUT_STATE_FILE, layout_state)
     _write_json_file(user_dir / MYSTOCK_LIST_FILE, {"tabs": watchlist_tabs})
@@ -306,6 +318,31 @@ def search_stocks(query: str) -> list[dict[str, Any]]:
             matches.append(stock)
 
     return matches
+
+
+def load_stock_prices() -> dict[str, dict[str, str]]:
+    payload = _read_json_file(STOCK_PRICES_PATH, {})
+    if not isinstance(payload, dict):
+        return {}
+
+    prices: dict[str, dict[str, str]] = {}
+    for ticker, snapshot in payload.items():
+        if isinstance(ticker, str) and isinstance(snapshot, dict):
+            raw_snapshot = snapshot.get("fields") if isinstance(snapshot.get("fields"), dict) else snapshot
+            prices[ticker] = {
+                str(field): str(value)
+                for field, value in raw_snapshot.items()
+                if isinstance(field, str)
+            }
+            updated_at = snapshot.get("updated_at")
+            if updated_at not in ("", None):
+                prices[ticker]["updated_at"] = str(updated_at)
+
+    return prices
+
+
+def save_stock_prices(prices: dict[str, dict[str, str]]) -> None:
+    _write_json_file(STOCK_PRICES_PATH, prices)
 
 
 def _clean_requested_fields(fields: Any) -> set[str]:
@@ -1116,6 +1153,8 @@ register_api_routes(
     search_stocks=search_stocks,
     load_user_state=load_user_state,
     save_user_state=save_user_state,
+    load_stock_prices=load_stock_prices,
+    save_stock_prices=save_stock_prices,
     clean_requested_fields=_clean_requested_fields,
     fetch_stock_snapshot=fetch_stock_snapshot,
     failed_snapshot=_failed_snapshot,

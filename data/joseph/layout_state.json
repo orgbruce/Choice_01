@@ -1,10 +1,14 @@
 {
-  "activeTabId": "tab-1777738334968-b794e6d6d87978",
+  "activeTabId": "tab-1778845795281-89f698437f58b8",
   "visibleColumns": [
     "name",
     "ticker",
     "price",
     "average_price",
+    "quantity",
+    "holding_amount",
+    "profit_rate",
+    "profit_amount",
     "change_amount",
     "change",
     "volume",
@@ -37,6 +41,10 @@
       "ticker",
       "price",
       "average_price",
+      "quantity",
+      "holding_amount",
+      "profit_rate",
+      "profit_amount",
       "change",
       "volume",
       "close",
@@ -62,14 +70,14 @@
       "performance_5y"
     ],
     "chart": [
-      "name",
       "price",
       "chart_d",
       "chart_candle_d",
       "chart_candle_w",
       "chart_y",
       "chart_y3",
-      "chart_y10"
+      "chart_y10",
+      "name"
     ]
   },
   "groupColumnOrder": {
@@ -78,6 +86,10 @@
       "ticker",
       "price",
       "average_price",
+      "quantity",
+      "holding_amount",
+      "profit_rate",
+      "profit_amount",
       "change",
       "volume",
       "close",
@@ -115,27 +127,10 @@
     ]
   },
   "groupColumnWidths": {
-    "price": {
-      "average_price": 126,
-      "close": 165,
-      "name": 134,
-      "price": 163,
-      "ticker": 135,
-      "volume": 93
-    },
+    "price": {},
     "fundamental": {},
     "performance": {},
-    "chart": {
-      "chart_candle_d": 296,
-      "chart_candle_w": 245,
-      "chart_d": 194,
-      "chart_y": 147,
-      "chart_y10": 187,
-      "chart_y3": 198,
-      "name": 122,
-      "price": 142,
-      "ticker": 110
-    }
+    "chart": {}
   },
-  "columnSchemaVersion": 7
+  "columnSchemaVersion": 12
 }

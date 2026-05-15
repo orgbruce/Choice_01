@@ -10,9 +10,10 @@
     --purple: #7c3aed;
     --red: #ff1f1f;
     --drag-column-width: 28px;
+    --stock-name-column-width: 196px;
     --stock-grid-columns: 28px minmax(140px, 1.4fr) minmax(82px, 0.9fr) repeat(6, minmax(74px, 0.85fr)) 52px;
     --stock-grid-gap: 0px;
-    --fixed-stock-columns-width: 190px;
+    --fixed-stock-columns-width: 224px;
 }
 
 * { box-sizing: border-box; }
@@ -468,9 +469,15 @@ body.layout-hide-navigation .top-horizontal-scroll {
     text-align: center;
     cursor: grab;
     line-height: 1.2;
-    white-space: normal;
-    overflow-wrap: anywhere;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
     word-break: keep-all;
+}
+
+.table-head > .stock-header-cell[data-column-key="name"] {
+    white-space: normal;
+    text-overflow: clip;
 }
 
 .table-head > .stock-header-cell[data-column-key="name"],
@@ -554,9 +561,10 @@ body.layout-hide-navigation .top-horizontal-scroll {
     border-right: 1px solid transparent;
     line-height: 1.25;
     text-align: center;
-    white-space: normal;
-    overflow-wrap: anywhere;
-    word-break: break-word;
+    white-space: nowrap;
+    overflow-wrap: normal;
+    word-break: keep-all;
+    text-overflow: ellipsis;
 }
 .stock-cell.performance-cell {
     min-height: 58px;
@@ -564,17 +572,20 @@ body.layout-hide-navigation .top-horizontal-scroll {
     padding: 0 6px;
     line-height: 1.2;
     text-align: center;
-    white-space: normal;
-    overflow-wrap: anywhere;
-    word-break: break-word;
+    white-space: nowrap;
+    overflow-wrap: normal;
+    word-break: keep-all;
+    text-overflow: ellipsis;
 }
 .stock-name {
     position: relative;
     flex-direction: column;
     align-items: flex-start;
     justify-content: center;
+    min-width: 0;
+    width: 100%;
     font-weight: 700;
-    overflow: visible;
+    overflow: hidden;
     padding: 0 14px;
     white-space: normal;
 }
@@ -584,12 +595,16 @@ body.layout-hide-navigation .top-horizontal-scroll {
     color: var(--text);
     font-size: 15px;
     line-height: 1.25;
+    display: -webkit-box;
+    overflow: hidden;
     white-space: normal;
-    overflow-wrap: anywhere;
+    overflow-wrap: break-word;
     word-break: keep-all;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
 }
 .stock-name .stock-market { display: block; margin-top: 5px; color: var(--muted); font-size: 10px; font-weight: 500; line-height: 1.2; }
-.stock-cell.stock-name.has-memo { overflow: visible; z-index: 20; }
+.stock-cell.stock-name.has-memo { overflow: hidden; z-index: 20; }
 
 .memo-mark {
     position: absolute;
@@ -677,17 +692,21 @@ body.layout-hide-navigation .top-horizontal-scroll {
 .empty-state.hidden { display: none; }
 
 .stock-cell.chart-cell {
-    min-height: 142px;
+    min-width: 0;
+    min-height: 136px;
     padding: 6px;
-    overflow: visible;
+    overflow: hidden;
 }
 
 .voca-entry-thumb.stock-chart-thumb {
     position: relative;
-    display: inline-flex;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     width: 100%;
-    height: 130px;
-    overflow: visible;
+    min-width: 0;
+    height: 124px;
+    overflow: hidden;
     border: 1px solid transparent;
     border-radius: 7px;
     background: #fff;
@@ -698,7 +717,9 @@ body.layout-hide-navigation .top-horizontal-scroll {
 .stock-chart-image {
     display: block;
     width: 100%;
+    max-width: 100%;
     height: 100%;
+    max-height: 100%;
     object-fit: contain;
     background: #fff;
     border-radius: 6px;
@@ -715,7 +736,9 @@ body.layout-hide-navigation .top-horizontal-scroll {
 .inline-stock-chart {
     display: block;
     width: 100%;
+    max-width: 100%;
     height: 100%;
+    max-height: 100%;
     background: #fff;
     border-radius: 6px;
     cursor: zoom-in;
@@ -969,6 +992,11 @@ body.layout-hide-navigation .top-horizontal-scroll {
 }
 
 @media (max-width: 760px) {
+    :root {
+        --stock-name-column-width: 172px;
+        --fixed-stock-columns-width: 196px;
+    }
+
     .app-header { padding: 18px 16px 14px; }
     .workspace { width: calc(100% - 20px); padding-top: 0; }
     .page-intro { flex-wrap: wrap; gap: 6px 10px; }
