@@ -416,8 +416,9 @@ function renderQuickLinksList() {
 
     state.quickLinks.forEach((link) => {
         const row = document.createElement("div");
-        row.className = "quick-link-row";
-        row.draggable = true;
+        const isEditing = editingQuickLinkId === link.id;
+        row.className = `quick-link-row${isEditing ? " editing" : ""}`;
+        row.draggable = !isEditing;
         row.dataset.quickLinkId = link.id;
 
         const dragHandle = document.createElement("button");
@@ -426,41 +427,97 @@ function renderQuickLinksList() {
         dragHandle.textContent = "☰";
         dragHandle.title = "위치 변경";
 
-        const name = document.createElement("span");
-        name.className = "quick-link-row-name";
-        name.textContent = link.name;
+        const name = isEditing ? document.createElement("input") : document.createElement("span");
+        name.className = isEditing ? "quick-link-row-input quick-link-row-name-input" : "quick-link-row-name";
+        if (isEditing) {
+            name.type = "text";
+            name.value = link.name;
+            name.autocomplete = "off";
+            name.setAttribute("aria-label", "사이트 이름");
+        } else {
+            name.textContent = link.name;
+        }
 
-        const url = document.createElement("span");
-        url.className = "quick-link-row-url";
-        url.textContent = link.url;
+        const url = isEditing ? document.createElement("input") : document.createElement("span");
+        url.className = isEditing ? "quick-link-row-input quick-link-row-url-input" : "quick-link-row-url";
+        if (isEditing) {
+            url.type = "text";
+            url.value = link.url;
+            url.autocomplete = "off";
+            url.setAttribute("aria-label", "사이트 주소");
+        } else {
+            url.textContent = link.url;
+        }
 
         const editButton = document.createElement("button");
         editButton.className = "quick-link-edit-button";
         editButton.type = "button";
-        editButton.textContent = "수정";
+        editButton.textContent = isEditing ? "저장" : "수정";
         editButton.addEventListener("click", () => {
-            editingQuickLinkId = link.id;
-            quickLinkNameInput.value = link.name;
-            quickLinkUrlInput.value = link.url;
-            quickLinkSubmitButton.textContent = "저장";
-            quickLinkCancelButton.hidden = false;
+            if (!isEditing) {
+                editingQuickLinkId = link.id;
+                quickLinkError.textContent = "";
+                renderQuickLinksList();
+                const input = quickLinksList.querySelector(`[data-quick-link-id="${CSS.escape(link.id)}"] .quick-link-row-name-input`);
+                input?.focus();
+                input?.select();
+                return;
+            }
+
+            const nextName = name.value.trim();
+            const nextUrl = normalizeQuickLinkUrl(url.value);
+            if (!nextName || !nextUrl) {
+                quickLinkError.textContent = "사이트 이름과 주소를 입력하세요.";
+                name.focus();
+                return;
+            }
+
+            link.name = nextName;
+            link.url = nextUrl;
+            editingQuickLinkId = null;
             quickLinkError.textContent = "";
-            quickLinkNameInput.focus();
-            quickLinkNameInput.select();
+            renderQuickLinks();
+            saveState();
         });
 
         const deleteButton = document.createElement("button");
         deleteButton.className = "quick-link-delete-button";
         deleteButton.type = "button";
-        deleteButton.textContent = "삭제";
+        deleteButton.textContent = isEditing ? "취소" : "삭제";
         deleteButton.addEventListener("click", () => {
+            if (isEditing) {
+                editingQuickLinkId = null;
+                quickLinkError.textContent = "";
+                renderQuickLinksList();
+                return;
+            }
             state.quickLinks = state.quickLinks.filter((item) => item.id !== link.id);
             if (editingQuickLinkId === link.id) clearQuickLinkForm();
             renderQuickLinks();
             saveState();
         });
 
+        if (isEditing) {
+            [name, url].forEach((input) => {
+                input.addEventListener("input", () => {
+                    quickLinkError.textContent = "";
+                });
+                input.addEventListener("keydown", (event) => {
+                    if (event.key === "Escape") {
+                        editingQuickLinkId = null;
+                        quickLinkError.textContent = "";
+                        renderQuickLinksList();
+                    }
+                    if (event.key === "Enter") {
+                        event.preventDefault();
+                        editButton.click();
+                    }
+                });
+            });
+        }
+
         row.addEventListener("dragstart", (event) => {
+            if (isEditing) return;
             draggedQuickLinkId = link.id;
             row.classList.add("dragging");
             event.dataTransfer.effectAllowed = "move";
@@ -476,6 +533,7 @@ function renderQuickLinksList() {
         });
 
         row.addEventListener("dragover", (event) => {
+            if (isEditing) return;
             if (!draggedQuickLinkId || draggedQuickLinkId === link.id) return;
             event.preventDefault();
             quickLinksList.querySelectorAll(".quick-link-row.drop-target").forEach((item) => {
@@ -485,6 +543,7 @@ function renderQuickLinksList() {
         });
 
         row.addEventListener("drop", (event) => {
+            if (isEditing) return;
             event.preventDefault();
             moveQuickLink(draggedQuickLinkId, link.id);
         });
@@ -520,19 +579,12 @@ function submitQuickLinkForm(event) {
         return;
     }
 
-    if (editingQuickLinkId) {
-        const link = state.quickLinks.find((item) => item.id === editingQuickLinkId);
-        if (link) {
-            link.name = name;
-            link.url = url;
-        }
-    } else {
-        state.quickLinks.push({
-            id: createId(),
-            name,
-            url,
-        });
-    }
+    editingQuickLinkId = null;
+    state.quickLinks.push({
+        id: createId(),
+        name,
+        url,
+    });
 
     clearQuickLinkForm();
     renderQuickLinks();

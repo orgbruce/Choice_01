@@ -139,11 +139,6 @@
   },
   "quickLinks": [
     {
-      "id": "tab-1778862530293-3aec6aa38e75c8",
-      "name": "투꼰",
-      "url": "https://www.instagram.com/twokkons/"
-    },
-    {
       "id": "tab-1778862524428-30eb0b5b82a2b8",
       "name": "주주",
       "url": "https://www.instagram.com/jujuclub.toon/"
@@ -154,9 +149,19 @@
       "url": "https://www.instagram.com/letsgetit_stock/"
     },
     {
+      "id": "tab-1778862530293-3aec6aa38e75c8",
+      "name": "투꼰",
+      "url": "https://www.instagram.com/twokkons/"
+    },
+    {
       "id": "tab-1778861381968-73a8dc7fe34b88",
-      "name": "마가_미국주식",
+      "name": "마가_미국",
       "url": "https://www.instagram.com/maga_today/"
+    },
+    {
+      "id": "tab-1778861364083-ed2dd6320221",
+      "name": "코인",
+      "url": "https://www.instagram.com/kobugi7942/"
     },
     {
       "id": "tab-1778861322938-c693f1918368d",
@@ -172,11 +177,6 @@
       "id": "tab-1778861388474-f90da24ba35af8",
       "name": "차트한방",
       "url": "https://www.instagram.com/chart_one_shot/"
-    },
-    {
-      "id": "tab-1778861364083-ed2dd6320221",
-      "name": "코인",
-      "url": "https://www.instagram.com/kobugi7942/"
     }
   ],
   "quickLinksSchemaVersion": 1,
