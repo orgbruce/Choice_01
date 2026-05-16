@@ -2,6 +2,7 @@ let STOCKS = Array.isArray(window.CHOICE_STOCKS) ? window.CHOICE_STOCKS : [];
 const STORAGE_KEY = "choice.state.v1";
 const STOCK_PRICES_URL = "/public/stock_prices.json";
 const COLUMN_SCHEMA_VERSION = 12;
+const QUICK_LINKS_SCHEMA_VERSION = 1;
 const inlineChartCache = new Map();
 const PRICE_LINK_OVERRIDES = new Map([
     ["^GSPC", "https://finviz.com/map?t=sec"],
@@ -55,31 +56,31 @@ const YAHOO_SVG_CHART_TICKERS = new Set([
 
 const COLUMN_DEFS = [
     { key: "name", label: "종목명", className: "stock-name", width: "var(--stock-name-column-width)" },
-    { key: "ticker", label: "티커", width: "92px" },
-    { key: "price", label: "현재가", width: "92px" },
-    { key: "average_price", label: "평단가", className: "average-price-cell", width: "92px" },
-    { key: "quantity", label: "수량", className: "average-price-cell", width: "76px" },
-    { key: "holding_amount", label: "매입금액", width: "108px" },
-    { key: "profit_rate", label: "수익%", width: "92px", valueClass: getChangeClass },
-    { key: "profit_amount", label: "손익", width: "108px", valueClass: getChangeClass },
-    { key: "change_amount", label: "변동", width: "96px", valueClass: getChangeClass },
-    { key: "change", label: "오늘변동률", width: "104px", valueClass: getChangeClass },
-    { key: "volume", label: "거래량", width: "112px" },
-    { key: "close", label: "종가", width: "92px" },
-    { key: "open", label: "시가", width: "92px" },
-    { key: "high", label: "고가", width: "92px" },
-    { key: "low", label: "저가", width: "92px" },
-    { key: "per", label: "PER", width: "minmax(74px, 0.85fr)" },
-    { key: "roic", label: "ROIC", width: "minmax(74px, 0.85fr)" },
-    { key: "operating_income_growth", label: "영업이익증가율", width: "minmax(110px, 1fr)" },
-    { key: "market_cap", label: "시가총액", width: "minmax(86px, 0.9fr)" },
-    { key: "performance_1d", label: "1D", className: "performance-cell", width: "minmax(48px, 0.75fr)", valueClass: getChangeClass },
-    { key: "performance_1w", label: "1W", className: "performance-cell", width: "minmax(48px, 0.75fr)", valueClass: getChangeClass },
-    { key: "performance_1m", label: "1M", className: "performance-cell", width: "minmax(48px, 0.75fr)", valueClass: getChangeClass },
-    { key: "performance_ytd", label: "YTD", className: "performance-cell", width: "minmax(48px, 0.75fr)", valueClass: getChangeClass },
-    { key: "performance_1y", label: "1Y", className: "performance-cell", width: "minmax(48px, 0.75fr)", valueClass: getChangeClass },
-    { key: "performance_3y", label: "3Y", className: "performance-cell", width: "minmax(48px, 0.75fr)", valueClass: getChangeClass },
-    { key: "performance_5y", label: "5Y", className: "performance-cell", width: "minmax(48px, 0.75fr)", valueClass: getChangeClass },
+    { key: "ticker", label: "티커", width: "70px" },
+    { key: "price", label: "현재가", width: "80px" },
+    { key: "average_price", label: "매입가", className: "average-price-cell", width: "80px" },
+    { key: "quantity", label: "수량", className: "average-price-cell", width: "40px" },
+    { key: "holding_amount", label: "매입금액", width: "80px" },
+    { key: "profit_rate", label: "수익%", width: "80px", valueClass: getChangeClass },
+    { key: "profit_amount", label: "손익", width: "90px", valueClass: getChangeClass },
+    { key: "change_amount", label: "변동", width: "70px", valueClass: getChangeClass },
+    { key: "change", label: "오늘변동률", width: "80px", valueClass: getChangeClass },
+    { key: "volume", label: "거래량", width: "100px" },
+    { key: "close", label: "종가", width: "80px" },
+    { key: "open", label: "시가", width: "80px" },
+    { key: "high", label: "고가", width: "80px" },
+    { key: "low", label: "저가", width: "80px" },
+    { key: "per", label: "PER", width: "80px" },
+    { key: "roic", label: "ROIC", width: "90px" },
+    { key: "operating_income_growth", label: "영업이익증가율", width: "90px" },
+    { key: "market_cap", label: "시가총액", width: "90px" },
+    { key: "performance_1d", label: "1D", className: "performance-cell", width: "90px", valueClass: getChangeClass },
+    { key: "performance_1w", label: "1W", className: "performance-cell", width: "90px", valueClass: getChangeClass },
+    { key: "performance_1m", label: "1M", className: "performance-cell", width: "90px", valueClass: getChangeClass },
+    { key: "performance_ytd", label: "YTD", className: "performance-cell", width: "90px", valueClass: getChangeClass },
+    { key: "performance_1y", label: "1Y", className: "performance-cell", width: "90px", valueClass: getChangeClass },
+    { key: "performance_3y", label: "3Y", className: "performance-cell", width: "90px", valueClass: getChangeClass },
+    { key: "performance_5y", label: "5Y", className: "performance-cell", width: "90px", valueClass: getChangeClass },
     { key: "chart_d", label: "1일", className: "chart-cell", width: "220px", chartType: "stock", chartPeriod: "d" },
     { key: "chart_candle_d", label: "일봉", className: "chart-cell", width: "220px", chartType: "candle", chartPeriod: "d" },
     { key: "chart_candle_w", label: "주봉", className: "chart-cell", width: "220px", chartType: "candle", chartPeriod: "w" },
@@ -152,6 +153,16 @@ const tableHeadEl = document.getElementById("tableHead");
 const stockListEl = document.getElementById("stockList");
 const emptyStateEl = document.getElementById("emptyState");
 const updateButton = document.getElementById("updateButton");
+const quickLinksToggleButton = document.getElementById("quickLinksToggleButton");
+const quickLinksPanel = document.getElementById("quickLinksPanel");
+const quickLinksBar = document.getElementById("quickLinksBar");
+const quickLinkForm = document.getElementById("quickLinkForm");
+const quickLinkNameInput = document.getElementById("quickLinkNameInput");
+const quickLinkUrlInput = document.getElementById("quickLinkUrlInput");
+const quickLinkSubmitButton = document.getElementById("quickLinkSubmitButton");
+const quickLinkCancelButton = document.getElementById("quickLinkCancelButton");
+const quickLinkError = document.getElementById("quickLinkError");
+const quickLinksList = document.getElementById("quickLinksList");
 const layoutToggleButton = document.getElementById("layoutToggleButton");
 const columnGroupTabsEl = document.getElementById("columnGroupTabs");
 const columnSettingsButton = document.getElementById("columnSettingsButton");
@@ -207,6 +218,9 @@ let pendingSuggestionPromise = null;
 let layoutToggleStage = 0;
 let saveStateTimer = null;
 let entryImagePopoutTopZ = 2147483000;
+let isQuickLinksPanelOpen = false;
+let editingQuickLinkId = null;
+let draggedQuickLinkId = null;
 const headerSortState = {
     tabId: null,
     groupKey: null,
@@ -297,10 +311,23 @@ function normalizeGroupColumnWidths(widths) {
             Object.fromEntries(
                 Object.entries(groupWidths)
                     .filter(([key, value]) => group.columns.includes(key) && Number.isFinite(Number(value)))
-                    .map(([key, value]) => [key, Math.max(72, Number(value))]),
+                    .map(([key, value]) => [key, Math.max(40, Number(value))]),
             ),
         ];
     }));
+}
+
+function normalizeQuickLinks(links) {
+    if (!Array.isArray(links)) return [];
+
+    return links
+        .filter((link) => link && typeof link === "object")
+        .map((link) => ({
+            id: link.id || createId(),
+            name: String(link.name || "").trim(),
+            url: String(link.url || "").trim(),
+        }))
+        .filter((link) => link.name && link.url);
 }
 
 function withFixedColumns(columns) {
@@ -332,6 +359,184 @@ function openPriceLinkWindow(stock) {
         `choicePriceLink_${ticker}_${Date.now()}`,
         "popup=yes,width=1200,height=820,left=80,top=60,noopener"
     );
+}
+
+function normalizeQuickLinkUrl(url) {
+    const trimmed = String(url || "").trim();
+    if (!trimmed) return "";
+    return /^[a-z][a-z\d+.-]*:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+}
+
+function openQuickLinkWindow(link) {
+    const url = normalizeQuickLinkUrl(link?.url);
+    if (!url) return;
+    const windowName = `choiceQuickLink_${String(link.id || "site").replace(/[^\w.-]/g, "_")}_${Date.now()}`;
+    window.open(url, windowName, "popup=yes,width=1200,height=820,left=80,top=60,noopener");
+}
+
+function clearQuickLinkForm() {
+    editingQuickLinkId = null;
+    quickLinkNameInput.value = "";
+    quickLinkUrlInput.value = "";
+    quickLinkError.textContent = "";
+    quickLinkSubmitButton.textContent = "추가";
+    quickLinkCancelButton.hidden = true;
+}
+
+function setQuickLinksPanelOpen(isOpen) {
+    isQuickLinksPanelOpen = isOpen;
+    quickLinksPanel.hidden = !isOpen;
+    quickLinksToggleButton.setAttribute("aria-expanded", String(isOpen));
+    quickLinksToggleButton.textContent = isOpen ? "▲" : "▼";
+    if (isOpen) {
+        window.setTimeout(() => quickLinkNameInput.focus(), 0);
+    } else {
+        clearQuickLinkForm();
+    }
+}
+
+function renderQuickLinksBar() {
+    quickLinksBar.innerHTML = "";
+    state.quickLinks = normalizeQuickLinks(state.quickLinks);
+
+    state.quickLinks.forEach((link) => {
+        const button = document.createElement("button");
+        button.className = "quick-link-button";
+        button.type = "button";
+        button.textContent = link.name;
+        button.title = link.url;
+        button.addEventListener("click", () => openQuickLinkWindow(link));
+        quickLinksBar.appendChild(button);
+    });
+}
+
+function renderQuickLinksList() {
+    quickLinksList.innerHTML = "";
+    state.quickLinks = normalizeQuickLinks(state.quickLinks);
+
+    state.quickLinks.forEach((link) => {
+        const row = document.createElement("div");
+        row.className = "quick-link-row";
+        row.draggable = true;
+        row.dataset.quickLinkId = link.id;
+
+        const dragHandle = document.createElement("button");
+        dragHandle.className = "quick-link-drag-handle";
+        dragHandle.type = "button";
+        dragHandle.textContent = "☰";
+        dragHandle.title = "위치 변경";
+
+        const name = document.createElement("span");
+        name.className = "quick-link-row-name";
+        name.textContent = link.name;
+
+        const url = document.createElement("span");
+        url.className = "quick-link-row-url";
+        url.textContent = link.url;
+
+        const editButton = document.createElement("button");
+        editButton.className = "quick-link-edit-button";
+        editButton.type = "button";
+        editButton.textContent = "수정";
+        editButton.addEventListener("click", () => {
+            editingQuickLinkId = link.id;
+            quickLinkNameInput.value = link.name;
+            quickLinkUrlInput.value = link.url;
+            quickLinkSubmitButton.textContent = "저장";
+            quickLinkCancelButton.hidden = false;
+            quickLinkError.textContent = "";
+            quickLinkNameInput.focus();
+            quickLinkNameInput.select();
+        });
+
+        const deleteButton = document.createElement("button");
+        deleteButton.className = "quick-link-delete-button";
+        deleteButton.type = "button";
+        deleteButton.textContent = "삭제";
+        deleteButton.addEventListener("click", () => {
+            state.quickLinks = state.quickLinks.filter((item) => item.id !== link.id);
+            if (editingQuickLinkId === link.id) clearQuickLinkForm();
+            renderQuickLinks();
+            saveState();
+        });
+
+        row.addEventListener("dragstart", (event) => {
+            draggedQuickLinkId = link.id;
+            row.classList.add("dragging");
+            event.dataTransfer.effectAllowed = "move";
+            event.dataTransfer.setData("text/plain", link.id);
+        });
+
+        row.addEventListener("dragend", () => {
+            draggedQuickLinkId = null;
+            quickLinksList.querySelectorAll(".quick-link-row").forEach((item) => {
+                item.classList.remove("dragging", "drop-target");
+            });
+            saveState();
+        });
+
+        row.addEventListener("dragover", (event) => {
+            if (!draggedQuickLinkId || draggedQuickLinkId === link.id) return;
+            event.preventDefault();
+            quickLinksList.querySelectorAll(".quick-link-row.drop-target").forEach((item) => {
+                item.classList.remove("drop-target");
+            });
+            row.classList.add("drop-target");
+        });
+
+        row.addEventListener("drop", (event) => {
+            event.preventDefault();
+            moveQuickLink(draggedQuickLinkId, link.id);
+        });
+
+        row.append(dragHandle, name, url, editButton, deleteButton);
+        quickLinksList.appendChild(row);
+    });
+}
+
+function renderQuickLinks() {
+    renderQuickLinksBar();
+    renderQuickLinksList();
+}
+
+function moveQuickLink(sourceId, targetId) {
+    if (!sourceId || !targetId || sourceId === targetId) return;
+    const sourceIndex = state.quickLinks.findIndex((link) => link.id === sourceId);
+    const targetIndex = state.quickLinks.findIndex((link) => link.id === targetId);
+    if (sourceIndex < 0 || targetIndex < 0) return;
+
+    const [moved] = state.quickLinks.splice(sourceIndex, 1);
+    state.quickLinks.splice(targetIndex, 0, moved);
+    renderQuickLinks();
+    saveState();
+}
+
+function submitQuickLinkForm(event) {
+    event.preventDefault();
+    const name = quickLinkNameInput.value.trim();
+    const url = normalizeQuickLinkUrl(quickLinkUrlInput.value);
+    if (!name || !url) {
+        quickLinkError.textContent = "사이트 이름과 주소를 입력하세요.";
+        return;
+    }
+
+    if (editingQuickLinkId) {
+        const link = state.quickLinks.find((item) => item.id === editingQuickLinkId);
+        if (link) {
+            link.name = name;
+            link.url = url;
+        }
+    } else {
+        state.quickLinks.push({
+            id: createId(),
+            name,
+            url,
+        });
+    }
+
+    clearQuickLinkForm();
+    renderQuickLinks();
+    saveState();
 }
 
 function readLocalActiveTabId() {
@@ -366,6 +571,8 @@ function loadState() {
             groupVisibleColumns: shouldResetColumns ? createDefaultGroupVisibleColumns() : normalizeGroupVisibleColumns(saved.groupVisibleColumns),
             groupColumnOrder: shouldResetColumns ? createDefaultGroupColumnOrder() : normalizeGroupColumnOrder(saved.groupColumnOrder),
             groupColumnWidths: shouldResetColumns ? createDefaultGroupColumnWidths() : normalizeGroupColumnWidths(saved.groupColumnWidths),
+            quickLinks: normalizeQuickLinks(saved.quickLinks),
+            quickLinksSchemaVersion: QUICK_LINKS_SCHEMA_VERSION,
             columnSchemaVersion: COLUMN_SCHEMA_VERSION,
         };
     }
@@ -386,6 +593,8 @@ function loadState() {
                 groupVisibleColumns: shouldResetColumns ? createDefaultGroupVisibleColumns() : normalizeGroupVisibleColumns(saved.groupVisibleColumns),
                 groupColumnOrder: shouldResetColumns ? createDefaultGroupColumnOrder() : normalizeGroupColumnOrder(saved.groupColumnOrder),
                 groupColumnWidths: shouldResetColumns ? createDefaultGroupColumnWidths() : normalizeGroupColumnWidths(saved.groupColumnWidths),
+                quickLinks: normalizeQuickLinks(saved.quickLinks),
+                quickLinksSchemaVersion: QUICK_LINKS_SCHEMA_VERSION,
                 columnSchemaVersion: COLUMN_SCHEMA_VERSION,
             };
         }
@@ -402,6 +611,8 @@ function loadState() {
         groupVisibleColumns: createDefaultGroupVisibleColumns(),
         groupColumnOrder: createDefaultGroupColumnOrder(),
         groupColumnWidths: createDefaultGroupColumnWidths(),
+        quickLinks: [],
+        quickLinksSchemaVersion: QUICK_LINKS_SCHEMA_VERSION,
         columnSchemaVersion: COLUMN_SCHEMA_VERSION,
     };
 }
@@ -982,6 +1193,7 @@ function openInlineChartPopout(event, svgMarkup, chartName = "chart") {
 
 function render() {
     applyGridColumns();
+    renderQuickLinks();
     renderTabs();
     renderColumnGroupTabs();
     renderColumnSettings();
@@ -1412,7 +1624,7 @@ document.addEventListener("pointermove", (event) => {
 
     const isPerformanceColumn = resizingColumn.columnKey?.startsWith("performance_");
     const isChartColumn = Boolean(getColumnByKey(resizingColumn.columnKey)?.chartType);
-    const minWidth = isChartColumn ? 180 : (isPerformanceColumn ? 44 : 72);
+    const minWidth = isChartColumn ? 180 : (isPerformanceColumn ? 44 : 40);
     const nextWidth = Math.max(minWidth, Math.round(resizingColumn.startWidth + event.clientX - resizingColumn.startX));
     state.groupColumnWidths[resizingColumn.groupKey][resizingColumn.columnKey] = nextWidth;
     applyLiveColumnWidths();
@@ -1548,8 +1760,8 @@ function renderStocks() {
 
             if (column.key === "average_price" || column.key === "quantity") {
                 cell.tabIndex = 0;
-                cell.title = "평단가 입력";
-                cell.title = column.key === "quantity" ? "수량 입력" : "평단가 입력";
+                cell.title = "매입가 입력";
+                cell.title = column.key === "quantity" ? "수량 입력" : "매입가 입력";
                 cell.addEventListener("click", () => openAveragePriceDialog(stock.ticker, column.key));
                 cell.addEventListener("keydown", (event) => {
                     if (event.key !== "Enter" && event.key !== " ") return;
@@ -1868,8 +2080,8 @@ function openAveragePriceDialog(ticker, field = "average_price") {
     const stock = getEditingAveragePriceStock();
     if (!stock) return;
 
-    const title = field === "quantity" ? "수량 입력" : "평단가 입력";
-    const label = field === "quantity" ? "수량" : "평단가";
+    const title = field === "quantity" ? "수량 입력" : "매입가 입력";
+    const label = field === "quantity" ? "수량" : "매입가";
     const titleEl = document.getElementById("averagePriceDialogTitle");
     if (titleEl) titleEl.textContent = title;
     averagePriceInput.setAttribute("aria-label", label);
@@ -2269,6 +2481,15 @@ deleteTabButton.addEventListener("click", deleteContextTab);
 renameTabButton.addEventListener("click", renameTab);
 writeMemoButton.addEventListener("click", openMemoDialog);
 updateButton.addEventListener("click", updateActiveStocks);
+quickLinksToggleButton.addEventListener("click", () => setQuickLinksPanelOpen(!isQuickLinksPanelOpen));
+quickLinkForm.addEventListener("submit", submitQuickLinkForm);
+quickLinkCancelButton.addEventListener("click", clearQuickLinkForm);
+quickLinkNameInput.addEventListener("input", () => {
+    quickLinkError.textContent = "";
+});
+quickLinkUrlInput.addEventListener("input", () => {
+    quickLinkError.textContent = "";
+});
 layoutToggleButton?.addEventListener("click", toggleLayoutStage);
 window.addEventListener("load", refreshActiveTabFromStockPrices);
 columnSettingsButton.addEventListener("click", toggleColumnSettings);

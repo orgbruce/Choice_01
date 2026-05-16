@@ -9,16 +9,31 @@
 <body>
     <div class="app-shell">
         <header class="app-header">
-            <div>
+            <div class="header-main">
                 <h1 class="brand-title">Choice</h1>
-                <p class="user-line">{{ username }} (사용자)</p>
+                <button id="quickLinksToggleButton" class="quick-links-toggle-button" type="button" aria-expanded="false" aria-controls="quickLinksPanel" title="사이트 바로가기 편집">▼</button>
+                <nav id="quickLinksBar" class="quick-links-bar" aria-label="사이트 바로가기"></nav>
             </div>
-            <form class="logout-form" method="post" action="{{ url_for('logout') }}">
-                <button class="logout-button" type="submit">로그아웃</button>
-            </form>
+            <div class="header-account">
+                <form class="logout-form" method="post" action="{{ url_for('logout') }}">
+                    <button class="logout-button" type="submit">아웃</button>
+                </form>
+                <p class="user-line">{{ username }}</p>
+            </div>
         </header>
 
         <main class="workspace">
+            <section id="quickLinksPanel" class="quick-links-panel" aria-label="사이트 바로가기 편집" hidden>
+                <form id="quickLinkForm" class="quick-link-form">
+                    <input id="quickLinkNameInput" class="quick-link-input" type="text" autocomplete="off" placeholder="사이트 이름" aria-label="사이트 이름">
+                    <input id="quickLinkUrlInput" class="quick-link-input" type="text" autocomplete="off" placeholder="사이트 주소" aria-label="사이트 주소">
+                    <button id="quickLinkSubmitButton" class="quick-link-submit-button" type="submit">추가</button>
+                    <button id="quickLinkCancelButton" class="quick-link-cancel-button" type="button" hidden>취소</button>
+                </form>
+                <div id="quickLinkError" class="quick-link-error" aria-live="polite"></div>
+                <div id="quickLinksList" class="quick-links-list" aria-label="사이트 바로가기 목록"></div>
+            </section>
+
             <section class="page-intro" aria-labelledby="watchlistTitle">
                 <h2 id="watchlistTitle">관심종목</h2>
                 <span class="update-status">업데이트 완료 오전 11:00:47</span>
@@ -145,14 +160,14 @@
 
     <div id="averagePriceDialogOverlay" class="dialog-overlay" aria-hidden="true">
         <section class="average-price-dialog" role="dialog" aria-modal="true" aria-labelledby="averagePriceDialogTitle">
-            <h2 id="averagePriceDialogTitle">평단가 입력</h2>
+            <h2 id="averagePriceDialogTitle">매입가 입력</h2>
             <input
                 id="averagePriceInput"
                 class="average-price-input"
                 type="text"
                 inputmode="decimal"
                 autocomplete="off"
-                aria-label="평단가"
+                aria-label="매입가"
             >
             <p id="averagePriceError" class="dialog-error" aria-live="polite"></p>
             <div class="dialog-actions">

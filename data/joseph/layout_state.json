@@ -1,5 +1,5 @@
 {
-  "activeTabId": "tab-1778845795281-89f698437f58b8",
+  "activeTabId": "tab-1778843599426-f804c4b5c07bd8",
   "visibleColumns": [
     "name",
     "ticker",
@@ -34,11 +34,9 @@
     "chart_y3",
     "chart_y10"
   ],
-  "activeColumnGroup": "chart",
+  "activeColumnGroup": "price",
   "groupVisibleColumns": {
     "price": [
-      "name",
-      "ticker",
       "price",
       "average_price",
       "quantity",
@@ -50,7 +48,8 @@
       "close",
       "open",
       "high",
-      "low"
+      "low",
+      "name"
     ],
     "fundamental": [
       "name",
@@ -127,10 +126,59 @@
     ]
   },
   "groupColumnWidths": {
-    "price": {},
+    "price": {
+      "name": 88
+    },
     "fundamental": {},
     "performance": {},
-    "chart": {}
+    "chart": {
+      "chart_candle_d": 188,
+      "chart_d": 181,
+      "name": 84
+    }
   },
+  "quickLinks": [
+    {
+      "id": "tab-1778862530293-3aec6aa38e75c8",
+      "name": "투꼰",
+      "url": "https://www.instagram.com/twokkons/"
+    },
+    {
+      "id": "tab-1778862524428-30eb0b5b82a2b8",
+      "name": "주주",
+      "url": "https://www.instagram.com/jujuclub.toon/"
+    },
+    {
+      "id": "tab-1778861331844-9cc1303604b1f8",
+      "name": "기릿",
+      "url": "https://www.instagram.com/letsgetit_stock/"
+    },
+    {
+      "id": "tab-1778861381968-73a8dc7fe34b88",
+      "name": "마가_미국주식",
+      "url": "https://www.instagram.com/maga_today/"
+    },
+    {
+      "id": "tab-1778861322938-c693f1918368d",
+      "name": "단테",
+      "url": "https://www.instagram.com/dante_dante_kim/"
+    },
+    {
+      "id": "tab-1778861376371-9fd8bf9d17c0d",
+      "name": "불스_한국",
+      "url": "https://www.instagram.com/bullstory1/"
+    },
+    {
+      "id": "tab-1778861388474-f90da24ba35af8",
+      "name": "차트한방",
+      "url": "https://www.instagram.com/chart_one_shot/"
+    },
+    {
+      "id": "tab-1778861364083-ed2dd6320221",
+      "name": "코인",
+      "url": "https://www.instagram.com/kobugi7942/"
+    }
+  ],
+  "quickLinksSchemaVersion": 1,
   "columnSchemaVersion": 12
 }

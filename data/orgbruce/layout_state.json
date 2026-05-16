@@ -116,9 +116,15 @@
     ]
   },
   "groupColumnWidths": {
-    "price": {},
-    "fundamental": {},
-    "performance": {},
+    "price": {
+      "name": 120
+    },
+    "fundamental": {
+      "name": 120
+    },
+    "performance": {
+      "name": 120
+    },
     "chart": {
       "chart_candle_d": 230,
       "chart_candle_w": 225,
@@ -126,7 +132,7 @@
       "chart_y": 227,
       "chart_y10": 225,
       "chart_y3": 241,
-      "name": 132,
+      "name": 120,
       "price": 188,
       "ticker": 176
     }
